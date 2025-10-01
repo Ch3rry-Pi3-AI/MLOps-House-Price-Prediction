@@ -1,0 +1,40 @@
+# ---------------------------------------------
+# 📊 DATA PROCESSING & ANALYSIS
+# ---------------------------------------------
+pandas              # Data manipulation and analysis — core for working with tabular data
+numpy               # Numerical operations, arrays, and matrix support (used by almost all ML libraries)
+
+# ---------------------------------------------
+# 🧠 MACHINE LEARNING
+# ---------------------------------------------
+scikit-learn        # Classic ML models (regression, classification, clustering), preprocessing, model evaluation
+xgboost
+# ---------------------------------------------
+# 📈 VISUALIZATION
+# ---------------------------------------------
+matplotlib          # Base library for plotting graphs, charts, and visualizations
+seaborn             # High-level interface for drawing attractive and informative statistical graphics (built on matplotlib)
+
+# ---------------------------------------------
+# 📦 EXPERIMENT TRACKING & MODEL MANAGEMENT
+# ---------------------------------------------
+mlflow              # End-to-end ML lifecycle tracking, including experiment tracking, model packaging, and deployment
+
+# ---------------------------------------------
+# ✅ TESTING
+# ---------------------------------------------
+pytest              # Python testing framework — great for writing unit tests for ML pipelines, data validation, etc.
+
+# ---------------------------------------------
+# ⚡ API DEVELOPMENT (FOR MODEL SERVING)
+# ---------------------------------------------
+fastapi             # Lightweight, high-performance web framework for serving ML models via REST APIs
+uvicorn             # ASGI server for running FastAPI apps — lightweight and fast
+#
+# ---------------------------------------------
+# 🛠️ MISCELLANEOUS UTILITIES
+# ---------------------------------------------
+pyyaml              # Read/write YAML files — useful for managing configs and pipeline parameters
+joblib              # Efficient serialization and parallelism — often used to save/load ML models or speed up tasks
+setuptools          # Core Python packaging tool — ensures the project can be installed as a package
+ipykernel           # Kernel for Jupyter notebooks — allows running this project’s code interactively
