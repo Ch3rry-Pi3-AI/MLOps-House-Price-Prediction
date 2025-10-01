@@ -1,7 +1,7 @@
 # **Data Preprocessing Stage**
 
 This branch extends the **MLOps House Price Prediction** project by implementing the **data preprocessing pipeline**.
-It introduces a modular structure under `src/data/` for loading, cleaning, and handling outliers, alongside a full test suite and automation via `invoke`.
+It introduces a modular structure under `src/data/` for loading, cleaning, schema validation, and outlier handling, alongside a full test suite, automation via `invoke`, and GitHub Actions for CI/CD.
 
 The pipeline can now take raw data (`data/raw/`) and output cleaned data (`data/processed/cleaned_house_data.csv`) with missing value imputation and configurable outlier handling.
 
@@ -12,6 +12,9 @@ The pipeline can now take raw data (`data/raw/`) and output cleaned data (`data/
 ```
 mlops-house-price-prediction/
 ├── .venv/
+├── .github/                        # 🚀 NEW: GitHub Actions configuration
+│   └── workflows/
+│       └── ci.yml                  # 🚀 NEW: CI pipeline (tests, linting, etc.)
 ├── data/
 │   ├── raw/
 │   └── processed/
@@ -158,5 +161,23 @@ invoke ensure-dirs
 
 
 
-✅ With this stage complete, the project now has a fully modular preprocessing pipeline, automated testing, and developer productivity commands via Invoke. This ensures data consistency and makes the foundation ready for **feature engineering** and **model training** in the next stage.
+## **Continuous Integration (CI/CD)**
 
+This stage also introduces a **GitHub Actions workflow** (`.github/workflows/ci.yml`) for automated testing and linting.
+
+* ✅ Runs `pytest` on every push and pull request
+* ✅ Ensures code quality via `ruff` and optional `black` formatting
+* ✅ Provides quick feedback in GitHub before merging
+
+You can view the workflow under **Actions** in the GitHub repo to confirm all tests and checks pass.
+
+
+
+✅ With this stage complete, the project now has:
+
+* A fully modular preprocessing pipeline
+* Automated tests and coverage
+* Developer productivity tasks via Invoke
+* Continuous integration checks via GitHub Actions
+
+This sets the foundation for **feature engineering** in the next stage.
