@@ -1,39 +1,60 @@
-# **Initial Project Setup**
+# **Data Preprocessing Stage**
 
-This branch establishes the initial project structure for the **MLOps House Price Prediction** project. It contains a minimal Python package under `src/`, with other folders prepared for data, deployment, model training, and application development. No data import modules are included in this branch.
+This branch extends the **MLOps House Price Prediction** project by implementing the **data preprocessing pipeline**.
+It introduces a modular structure under `src/data/` for loading, cleaning, and handling outliers, alongside a full test suite and automation via `invoke`.
+
+The pipeline can now take raw data (`data/raw/`) and output cleaned data (`data/processed/cleaned_house_data.csv`) with missing value imputation and configurable outlier handling.
+
+
 
 ## **Project Structure**
 
 ```
 mlops-house-price-prediction/
-├── .venv/                  # Local virtual environment (ignored in Git)
+├── .venv/
 ├── data/
-│   ├── raw/                # Raw datasets
-│   └── processed/          # Cleaned / transformed datasets
+│   ├── raw/
+│   └── processed/
+│       └── cleaned_house_data.csv  # 🚀 NEW: Example processed dataset
 ├── deployment/
-│   ├── kubernetes/         # Deployment manifests for Kubernetes
-│   └── mlflow/             # MLflow tracking server setup
+│   ├── kubernetes/
+│   └── mlflow/
 ├── models/
-│   └── trained/            # Trained models and preprocessing artefacts
-├── notebooks/              # Jupyter notebooks (exploration, experiments)
+│   └── trained/
+├── notebooks/
 ├── src/
-│   ├── api/                # API endpoints for serving predictions
-│   ├── data/               # Data handling modules
-│   ├── features/           # Feature engineering pipeline
-│   └── models/             # Model training and evaluation scripts
-├── streamlit_app/          # Streamlit application for model interaction
-├── .gitignore              # Ignore rules for Git
-├── .python-version         # Python version pin (for uv/pyenv)
-├── pyproject.toml          # Project metadata and build configuration
-├── README.md               # Project documentation (you are here)
-├── requirements.txt        # Python dependencies
-├── tasks.py                # Task runner / automation entry point
-└── uv.lock                 # uv lockfile for reproducible installs
+│   ├── api/
+│   ├── data/                       # 🚀 NEW: Preprocessing modules
+│   │   ├── cleaning.py             # 🚀 NEW: Missing value handling
+│   │   ├── config.py               # 🚀 NEW: Config (dataclass, YAML loader)
+│   │   ├── io.py                   # 🚀 NEW: CSV/Parquet load & save helpers
+│   │   ├── outliers.py             # 🚀 NEW: Outlier detection & policies
+│   │   ├── processor.py            # 🚀 NEW: Orchestrator for preprocessing
+│   │   ├── schema.py               # 🚀 NEW: Schema/column validation
+│   │   └── cli.py                  # 🚀 NEW: Command-line entrypoint for preprocessing
+│   ├── features/
+│   └── models/
+├── streamlit_app/
+├── tests/                          # 🚀 NEW: Test suite
+│   ├── conftest.py                 # 🚀 NEW: Shared fixtures + sys.path shim
+│   └── data/
+│       ├── test_cleaning.py        # 🚀 NEW: Unit tests for cleaning
+│       ├── test_io.py              # 🚀 NEW: Unit tests for IO
+│       ├── test_outliers.py        # 🚀 NEW: Unit tests for outliers
+│       ├── test_processor_integration.py # 🚀 NEW: End-to-end integration test
+│       └── test_schema.py          # 🚀 NEW: Unit tests for schema checks
+├── .gitignore
+├── .python-version
+├── pyproject.toml
+├── README.md
+├── requirements.txt
+├── tasks.py                        # 🚀 NEW: Invoke task runner (tests, lint, preprocess, serve, etc.)
+└── uv.lock
 ```
 
 > Note: Any `.venv/` folder is ignored and should not be committed.
 
----
+
 
 ## **Development Environment**
 
@@ -87,3 +108,55 @@ uv pip install -r requirements.txt
 ```bash
 deactivate
 ```
+
+
+
+## **Running Preprocessing**
+
+You can now run the preprocessing pipeline in two ways:
+
+### 1. Direct Python Execution
+
+```bash
+python -m src.data.processor
+```
+
+This will load the raw dataset from `data/raw/house_data.csv` and write the cleaned version to `data/processed/cleaned_house_data.csv`.
+
+
+
+### 2. Using Invoke Tasks
+
+The project includes an `invoke`-based task runner (`tasks.py`) with common commands:
+
+```bash
+# run tests
+invoke test
+
+# run a subset
+invoke test -k cleaning
+
+# run with coverage
+invoke cov
+
+# optional: if you install black/ruff
+invoke fmt
+invoke lint
+
+# clean caches
+invoke clean
+
+# Preprocess with defaults
+invoke preprocess
+
+# Preprocess with clipping and a different target
+invoke preprocess --policy=clip --target=SalePrice --iqr=2.0
+
+# Create common dirs
+invoke ensure-dirs
+```
+
+
+
+✅ With this stage complete, the project now has a fully modular preprocessing pipeline, automated testing, and developer productivity commands via Invoke. This ensures data consistency and makes the foundation ready for **feature engineering** and **model training** in the next stage.
+
