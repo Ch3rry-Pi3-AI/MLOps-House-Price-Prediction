@@ -1,40 +1,57 @@
 # ---------------------------------------------
 # 📊 DATA PROCESSING & ANALYSIS
 # ---------------------------------------------
-pandas              # Data manipulation and analysis — core for working with tabular data
-numpy               # Numerical operations, arrays, and matrix support (used by almost all ML libraries)
+pandas              # Core tabular data manipulation
+numpy               # Numerical arrays, vectorised ops
+pyarrow             # Fast Arrow/Parquet IO for data/artefacts
+python-dotenv       # Load environment variables from .env for local runs
 
 # ---------------------------------------------
 # 🧠 MACHINE LEARNING
 # ---------------------------------------------
-scikit-learn        # Classic ML models (regression, classification, clustering), preprocessing, model evaluation
-xgboost
+scikit-learn        # Pipelines, preprocessing, model selection & metrics
+xgboost             # High-performance gradient boosting for tabular data
+category-encoders   # Useful encoders (e.g., target/ordinal/WOE) for tabular features
+
 # ---------------------------------------------
 # 📈 VISUALIZATION
 # ---------------------------------------------
-matplotlib          # Base library for plotting graphs, charts, and visualizations
-seaborn             # High-level interface for drawing attractive and informative statistical graphics (built on matplotlib)
+matplotlib          # Base plotting (metrics, diagnostics)
+seaborn             # Quick statistical visuals built on matplotlib
 
 # ---------------------------------------------
 # 📦 EXPERIMENT TRACKING & MODEL MANAGEMENT
 # ---------------------------------------------
-mlflow              # End-to-end ML lifecycle tracking, including experiment tracking, model packaging, and deployment
+mlflow              # Experiment tracking, params/metrics, artefacts, model registry
 
 # ---------------------------------------------
 # ✅ TESTING
 # ---------------------------------------------
-pytest              # Python testing framework — great for writing unit tests for ML pipelines, data validation, etc.
+pytest              # Unit/integration tests for data & pipeline logic
+pytest-cov          # Coverage reporting (used locally and in CI)
 
 # ---------------------------------------------
 # ⚡ API DEVELOPMENT (FOR MODEL SERVING)
 # ---------------------------------------------
-fastapi             # Lightweight, high-performance web framework for serving ML models via REST APIs
-uvicorn             # ASGI server for running FastAPI apps — lightweight and fast
-#
+fastapi             # Lightweight/high-perf REST API for inference
+uvicorn             # ASGI server to run FastAPI apps
+pydantic            # Request/response schema validation for the API
+
+# ---------------------------------------------
+# 🧰 TASK RUNNER / AUTOMATION
+# ---------------------------------------------
+invoke              # Local task runner (e.g., invoke test, cov, clean)
+
 # ---------------------------------------------
 # 🛠️ MISCELLANEOUS UTILITIES
 # ---------------------------------------------
-pyyaml              # Read/write YAML files — useful for managing configs and pipeline parameters
-joblib              # Efficient serialization and parallelism — often used to save/load ML models or speed up tasks
-setuptools          # Core Python packaging tool — ensures the project can be installed as a package
-ipykernel           # Kernel for Jupyter notebooks — allows running this project’s code interactively
+pyyaml              # YAML config read/write (pipeline configs)
+joblib              # Model/transformer serialisation & simple parallelism
+setuptools          # Packaging/build metadata
+ipykernel           # Jupyter kernel for notebooks
+
+# ---------------------------------------------
+# 🧹 CODE QUALITY (DEV-ONLY)
+# ---------------------------------------------
+black               # Opinionated code formatter
+ruff                # Fast linter (flake8/isort rules)

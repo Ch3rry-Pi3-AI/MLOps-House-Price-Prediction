@@ -1,0 +1,26 @@
+
+# run tests
+invoke test
+
+# run a subset
+invoke test -k cleaning
+
+# run with coverage
+invoke cov
+
+# optional: if you install black/ruff
+invoke fmt
+invoke lint
+
+# clean caches
+invoke clean
+
+# Preprocess with defaults
+invoke preprocess
+
+# Preprocess with clipping and a different target
+invoke preprocess --policy=clip --target=SalePrice --iqr=2.0
+
+# Create common dirs
+invoke ensure_dirs
+
