@@ -22,5 +22,5 @@ invoke preprocess
 invoke preprocess --policy=clip --target=SalePrice --iqr=2.0
 
 # Create common dirs
-invoke ensure_dirs
+invoke ensure-dirs
 
