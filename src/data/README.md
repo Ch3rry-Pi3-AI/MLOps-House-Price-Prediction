@@ -6,6 +6,8 @@ It provides a modular, testable, and extensible structure for turning raw input 
 The design follows **single-responsibility principles**: each module handles one clear task (I/O, schema validation, cleaning, outlier handling, orchestration, etc.).
 Together, they form a flexible preprocessing pipeline that can be run directly, via CLI, or integrated into larger workflows.
 
+
+
 ## **Module Structure**
 
 ```
@@ -19,6 +21,8 @@ src/data/
 └── cli.py           # Command-line entrypoint
 ```
 
+
+
 ## **Module Overview (with build order)**
 
 If building this folder **from scratch**, the natural order would be:
@@ -26,119 +30,139 @@ If building this folder **from scratch**, the natural order would be:
 ### 1. `io.py` – Input/Output Helpers
 
 * **Purpose**: Standardise CSV reading/writing.
-* **Dependencies**:
-
-  * `pandas` for reading/writing tabular data.
-  * `pathlib.Path` for safe cross-platform file paths.
-  * `logging` for visibility.
+* **Dependencies**: `pandas`, `pathlib.Path`, `logging`.
 * **Why first**: Provides the fundamental load/save functions used everywhere else.
 
 ### 2. `schema.py` – Schema Validation
 
-* **Purpose**: Ensure required columns exist and check types (numeric vs categorical).
-* **Dependencies**:
-
-  * `pandas.api.types` for dtype checks.
-  * `logging` for schema-related errors/warnings.
-* **Why second**: Guarantees that all downstream steps have the columns they expect.
+* **Purpose**: Ensure required columns exist and check types.
+* **Dependencies**: `pandas.api.types`, `logging`.
+* **Why second**: Guarantees that downstream steps have the expected structure.
 
 ### 3. `cleaning.py` – Missing Value Imputation
 
-* **Purpose**: Impute missing values:
-
-  * **Numeric** → median
-  * **Categorical** → mode (or `"UNKNOWN"`)
-* **Dependencies**:
-
-  * Relies on `schema.is_numeric` from **schema.py**.
-  * Uses `pandas` for Series-level operations.
-  * `logging` for imputation audit trail.
-* **Why third**: Missing values must be handled before outlier detection.
+* **Purpose**: Impute missing values (numeric → median, categorical → mode or `"UNKNOWN"`).
+* **Dependencies**: `schema.is_numeric`, `pandas`, `logging`.
+* **Why third**: Missing values must be resolved before outlier handling.
 
 ### 4. `outliers.py` – Outlier Handling
 
-* **Purpose**: Detect and handle outliers using the **Interquartile Range (IQR) rule**.
-
-  * `iqr_bounds`: Compute thresholds.
-  * `apply_outlier_policy`: Apply `"filter"`, `"clip"`, or `"none"`.
-* **Dependencies**:
-
-  * `pandas` for calculations.
-  * `logging` for reporting removed/clipped outliers.
-* **Why fourth**: Outlier handling builds on a clean dataset.
+* **Purpose**: Detect and handle outliers using the **IQR rule** (`filter`, `clip`, or `none`).
+* **Dependencies**: `pandas`, `logging`.
+* **Why fourth**: Outlier policies build on clean, imputed data.
 
 ### 5. `config.py` – Configuration Management
 
-* **Purpose**: Centralise pipeline parameters using a frozen `@dataclass`.
-* **Features**:
-
-  * Default target (`price`)
-  * Outlier policy (`filter`, `clip`, or `none`)
-  * IQR multiplier
-  * Save index toggle
-  * Optional YAML loader (`pyyaml`) for externalised configs.
-* **Why fifth**: Encapsulates pipeline parameters, making the processor and CLI configurable.
+* **Purpose**: Centralise parameters in a frozen `@dataclass`.
+* **Features**: default target, outlier policy, IQR multiplier, save index toggle, YAML loader.
+* **Why fifth**: Encapsulates pipeline parameters for both code and CLI.
 
 ### 6. `processor.py` – Orchestrator
 
-* **Purpose**: The **glue module** that ties all the above steps into a linear pipeline:
+* **Purpose**: Tie together the pipeline:
 
-  1. Load raw CSV (from `io.py`)
-  2. Validate schema (from `schema.py`)
-  3. Impute missing values (from `cleaning.py`)
-  4. Apply outlier policy (from `outliers.py`)
-  5. Save processed CSV (via `io.py`)
-* **Dependencies**:
-
-  * Imports all other modules in this folder.
-  * Uses `logging` for end-to-end visibility.
-* **Why sixth**: The orchestrator comes after all supporting modules are ready.
+  1. Load CSV (`io`)
+  2. Validate schema (`schema`)
+  3. Impute missing values (`cleaning`)
+  4. Apply outlier policy (`outliers`)
+  5. Save cleaned CSV (`io`)
+* **Dependencies**: All other modules, `logging`.
+* **Why sixth**: Built once the supporting modules exist.
 
 ### 7. `cli.py` – Command-Line Entrypoint
 
-* **Purpose**: Expose the pipeline to end users via `argparse`.
-* **Features**:
+* **Purpose**: Expose the pipeline with `argparse`.
+* **Features**: `--in`, `--out`, `--config`, `--policy`, `--target`.
+* **Dependencies**: `argparse`, `config.py`, `processor.py`.
+* **Why last**: Provides user-facing access once the processor is ready.
 
-  * Accepts `--in`, `--out`, `--config` (YAML), `--policy`, and `--target`.
-  * Allows overriding config values without editing code.
-* **Dependencies**:
 
-  * `argparse` for CLI parsing.
-  * `config.py` for defaults and YAML configs.
-  * `processor.py` for running the pipeline.
-* **Why last**: Built once the processing pipeline is stable, providing user-facing access.
 
 ## **Execution**
 
-You can run preprocessing directly:
+### 1. Direct Python Execution
 
 ```bash
 python -m src.data.processor
 ```
 
-Or via the CLI:
+This runs the pipeline with defaults (`data/raw/house_data.csv` → `data/processed/cleaned_house_data.csv`).
+
+
+
+### 2. Command-Line Interface
 
 ```bash
 python -m src.data.cli --in data/raw/house_data.csv --out data/processed/cleaned_house_data.csv --policy filter
 ```
 
-The CLI supports optional overrides:
+Optional overrides:
 
 ```bash
-# Use a YAML config file
+# Use a YAML config
 python -m src.data.cli --in data/raw/house_data.csv --out data/processed/cleaned_house_data.csv --config=config.yaml
 
 # Override policy & target on the fly
-python -m src.data.cli --in data/raw/house_data.csv --out data/processed/cleaned_house_data.csv --policy clip --target SalePrice
+python -m src.data.cli --in data/raw/house_data.csv --out data/processed/cleaned_house_data.csv --policy clip --target price
 ```
+
+
+
+### 3. Invoke Task Runner
+
+The repository also provides `tasks.py` with an **Invoke**-based task runner.
+
+#### Install Invoke
+
+```bash
+uv pip install invoke
+```
+
+#### Ensure directories
+
+```bash
+invoke ensure-dirs
+```
+
+This creates `data/raw/`, `data/processed/`, and `models/trained/` if they don’t exist.
+
+#### Run preprocessing (defaults)
+
+```bash
+invoke preprocess
+```
+
+Defaults:
+
+* **Input**: `data/raw/house_data.csv`
+* **Output**: `data/processed/cleaned_house_data.csv`
+* **Policy**: `filter`
+* **Target**: `price`
+* **IQR**: `1.5`
+* **Index**: `false`
+
+#### Run preprocessing with overrides
+
+```bash
+# Clip outliers on SalePrice with wider IQR
+invoke preprocess --policy=clip --target=SalePrice --iqr=2.0
+
+# Save index column and custom output path
+invoke preprocess --output=data/processed/saleprice_clean.csv --index=true
+
+# Process a different input file
+invoke preprocess --input=data/raw/new_house_data.csv
+```
+
+
 
 ## ✅ Summary
 
 This folder implements a **modular preprocessing stage** with:
 
 * Dedicated modules for **I/O, schema checks, cleaning, outlier handling, configuration, orchestration, and CLI**.
+* Flexible execution via **direct Python**, **CLI**, or **Invoke tasks**.
 * Clear separation of concerns and minimal dependencies.
-* Extensibility for future additions (e.g. scaling, encoding).
-* Both **library-style** usage (importing `process_data`) and **CLI execution**.
+* Extensibility for future additions (scaling, encoding, feature engineering).
 
-This structure ensures the pipeline is **robust, testable, and production-ready**, forming the foundation for the **feature engineering stage**.
+The pipeline is **robust, testable, and production-ready**, forming the foundation for the next stage: **feature engineering**.
