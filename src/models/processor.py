@@ -74,9 +74,15 @@ def run_training(
         mae = float(mean_absolute_error(y_test, y_pred))
         r2 = float(r2_score(y_test, y_pred))
 
-        # Infer signature and provide a small input example
-        input_example = X_train.head(2)
-        signature = infer_signature(X_train, y_pred)
+        # ---- NaN-safe signature & example (cast only for signature) ----
+        X_sig = X_train.copy()
+        int_cols = X_sig.select_dtypes(include=["int", "int32", "int64"]).columns
+        if len(int_cols) > 0:
+            X_sig[int_cols] = X_sig[int_cols].astype("float64")
+
+        input_example = X_sig.head(2)
+        signature = infer_signature(X_sig, y_pred)
+        # ----------------------------------------------------------------
 
         # Log params & metrics
         mlflow.log_params(model_cfg.parameters)
