@@ -1,0 +1,3 @@
+input: data/processed/cleaned_house_data.csv
+output: data/processed/engineered_features.csv
+preprocessor: models/trained/preprocessor.pkl
