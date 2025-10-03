@@ -100,7 +100,7 @@ Optional overrides:
 
 ```bash
 # Use a YAML config
-python -m src.data.cli --in data/raw/house_data.csv --out data/processed/cleaned_house_data.csv --config=config.yaml
+python -m src.data.cli --in data/raw/house_data.csv --out data/processed/cleaned_house_data.csv --config=clean.yaml
 
 # Override policy & target on the fly
 python -m src.data.cli --in data/raw/house_data.csv --out data/processed/cleaned_house_data.csv --policy clip --target price
