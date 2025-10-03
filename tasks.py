@@ -436,3 +436,159 @@ def features(
         features_test(c)
 
     engineer(c, input=input, output=output, preprocessor=preprocessor)
+
+
+# ====================================================================
+# 🏋️ MODEL TRAINING
+# ====================================================================
+
+@task(
+    help={
+        "config": "Path to model training YAML (default: configs/model_config.yaml)",
+        "data": "Path to ENGINEERED CSV (default: data/processed/engineered_features.csv)",
+        "models_dir": "Directory to save trained model (default: models)",
+        "mlflow_tracking_uri": "MLflow tracking URI (default: empty → file-based local store)",
+    }
+)
+def train(
+    c,
+    config: str = "configs/model_config.yaml",
+    data: str = "data/processed/engineered_features.csv",
+    models_dir: str = "models",
+    mlflow_tracking_uri: str = "",
+) -> None:
+    """
+    Run the model training pipeline and register the model.
+
+    Steps
+    -----
+    1. Ensure common directories exist (models/trained/).
+    2. Call the training orchestrator (`run_training`).
+    3. Persist the trained model locally and register in MLflow.
+
+    Parameters
+    ----------
+    c : invoke.Context
+        Invoke context.
+    config : str, default="configs/model_config.yaml"
+        Path to the model training YAML file.
+    data : str, default="data/processed/engineered_features.csv"
+        Path to the ENGINEERED input CSV file.
+    models_dir : str, default="models"
+        Directory where the trained model (.pkl) will be written under models/trained/.
+    mlflow_tracking_uri : str, default=""
+        MLflow tracking URI. Leave empty to use a local file-based store inside the run.
+        Use http://localhost:5555 to log to your Docker MLflow server.
+    """
+    _venv_notice()
+    ensure_dirs(c)  # make sure directories exist
+
+    # Lazy import: keep tasks lightweight unless the command is used
+    from src.models.processor import run_training
+
+    # Determine tracking URI:
+    # - If provided, use it as-is (e.g., http://localhost:5555).
+    # - Otherwise, use a repo-local file store at <repo>/mlruns as a proper file:// URI.
+    if mlflow_tracking_uri.strip():
+        uri = mlflow_tracking_uri.strip()
+    else:
+        local_store = (REPO_ROOT / "mlruns").resolve()
+        local_store.mkdir(parents=True, exist_ok=True)
+        uri = local_store.as_uri()  # Windows-safe file:///C:/... URI
+
+    print("⚙️  Running model training...")
+    run_training(
+        config_path=config,
+        data_path=data,
+        models_dir=models_dir,
+        mlflow_tracking_uri=uri,
+    )
+    print(f"✅ Training complete. Model & run logged (models_dir={models_dir})")
+
+
+@task(
+    help={
+        "k": "Only run tests matching expression (e.g., -k 'models and not slow')",
+        "m": "Only run tests with marker (e.g., -m 'integration')",
+    }
+)
+def models_test(c, k: str | None = None, m: str | None = None) -> None:
+    """
+    Run ONLY the model training test suite.
+
+    Parameters
+    ----------
+    c : invoke.Context
+        Invoke context.
+    k : str, optional
+        Pytest -k expression to select model tests.
+    m : str, optional
+        Pytest -m marker to select model tests.
+    """
+    _venv_notice()
+    target = "tests/models"
+    cmd = f"pytest {PYTEST_DEFAULTS} {target}"
+    if k:
+        cmd += f' -k "{k}"'
+    if m:
+        cmd += f' -m "{m}"'
+    _run(c, cmd)
+
+
+@task(
+    help={
+        "config": "Path to model training YAML (default: configs/model_config.yaml)",
+        "data": "Path to ENGINEERED CSV (default: data/processed/engineered_features.csv)",
+        "models_dir": "Directory to save trained model (default: models)",
+        "mlflow_tracking_uri": "MLflow tracking URI (default: empty → file-based local store)",
+        "skip_tests": "Set true to skip running model tests first (default: false)",
+    }
+)
+def models(
+    c,
+    config: str = "configs/model_config.yaml",
+    data: str = "data/processed/engineered_features.csv",
+    models_dir: str = "models",
+    mlflow_tracking_uri: str = "",
+    skip_tests: bool | str = False,
+) -> None:
+    """
+    Run model-training *tests first*, then the training pipeline.
+
+    Steps
+    -----
+    1. (Optional) Run `tests/models` via pytest.
+    2. Ensure directories exist.
+    3. Run `train` task to fit and register the model.
+
+    Parameters
+    ----------
+    c : invoke.Context
+        Invoke context.
+    config : str, default="configs/model_config.yaml"
+        Path to the model training YAML file.
+    data : str, default="data/processed/engineered_features.csv"
+        Path to the ENGINEERED input CSV file.
+    models_dir : str, default="models"
+        Directory where the trained model (.pkl) will be written under models/trained/.
+    mlflow_tracking_uri : str, default=""
+        MLflow tracking URI. Leave empty to use a local file-based store inside the run.
+        Use http://localhost:5555 to log to your Docker MLflow server.
+    skip_tests : bool or str, default=False
+        Whether to skip running the model tests before the pipeline.
+        Accepts common truthy/falsey strings.
+    """
+    _venv_notice()
+
+    if not _to_bool(skip_tests):
+        print("🧪 Running model-training tests...")
+        models_test(c)
+
+    train(
+        c,
+        config=config,
+        data=data,
+        models_dir=models_dir,
+        mlflow_tracking_uri=mlflow_tracking_uri,
+    )
+

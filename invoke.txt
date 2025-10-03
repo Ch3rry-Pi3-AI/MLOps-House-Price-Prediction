@@ -14,13 +14,13 @@ invoke lint
 # clean caches
 invoke clean
 
-# Preprocess with defaults
+# preprocess with defaults
 invoke preprocess
 
-# Preprocess with clipping and a different target
+# preprocess with clipping and a different target
 invoke preprocess --policy=clip --target=SalePrice --iqr=2.0
 
-# Create common dirs
+# create common dirs
 invoke ensure-dirs
 
 # run only feature engineering tests
@@ -39,3 +39,16 @@ invoke features --skip-tests
 invoke features --input=data/processed/cleaned_house_data.csv \
                 --output=data/processed/engineered_features.csv \
                 --preprocessor=models/trained/preprocessor.pkl
+
+# run model tests only
+invoke models-test
+
+# train model (file-based MLflow store)
+invoke train
+
+# train model against Docker MLflow
+invoke train --mlflow-tracking-uri=http//localhost:5555
+
+# run tests, then train
+invoke models --mlflow-tracking-uri=http://localhost:5555
+
