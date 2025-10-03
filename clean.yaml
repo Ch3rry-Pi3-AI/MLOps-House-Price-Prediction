@@ -1,4 +1,0 @@
-target: price
-outlier_policy: filter
-iqr_multiplier: 1.5
-save_index: false
