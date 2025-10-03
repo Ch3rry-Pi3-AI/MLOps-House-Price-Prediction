@@ -68,10 +68,14 @@ cd MLOps-House-Price-Prediction
 ### 3) Create and activate a virtual environment
 
 ```bash
-uv venv --python python3.13
-source .venv/bin/activate  # Linux / macOS
-source .venv/Scripts/activate # Windows bash
-.venv\Scripts\Activate.ps1 # Windows PowerShell
+# On Linux / macOS
+source .venv/bin/activate
+
+# On Windows (PowerShell)
+.venv\Scripts\Activate.ps1
+
+# On Windows (Git Bash)
+source .venv/Scripts/activate
 ```
 
 ### 4) Install dependencies
