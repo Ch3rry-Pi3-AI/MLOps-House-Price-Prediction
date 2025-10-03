@@ -75,7 +75,7 @@ def _has_cmd(cmd: str) -> bool:
     Parameters
     ----------
     cmd : str
-        Binary/command name, e.g. 'black' or 'ruff'.
+        Binary/command name, e.g., 'black' or 'ruff'.
 
     Returns
     -------
@@ -311,3 +311,128 @@ def preprocess(
     print(f"⚙️  Preprocessing with config: {cfg}")
     processed = process_data(input, output, cfg)
     print(f"✅ Preprocessed data saved to {output} (rows={len(processed)})")
+
+
+# ====================================================================
+# 🧱 FEATURE ENGINEERING
+# ====================================================================
+
+@task(
+    help={
+        "input":        "Path to CLEANED CSV (default: data/processed/cleaned_house_data.csv)",
+        "output":       "Path for ENGINEERED CSV (default: data/processed/engineered_features.csv)",
+        "preprocessor": "Path to save fitted preprocessor (default: models/trained/preprocessor.pkl)",
+    }
+)
+def engineer(
+    c,
+    input: str = "data/processed/cleaned_house_data.csv",
+    output: str = "data/processed/engineered_features.csv",
+    preprocessor: str = "models/trained/preprocessor.pkl",
+) -> None:
+    """
+    Run the feature engineering pipeline and write outputs.
+
+    Steps
+    -----
+    1. Ensure common directories exist (data/, models/trained/).
+    2. Call the feature pipeline orchestrator (`run_feature_engineering`).
+    3. Save the engineered CSV and pickled preprocessor.
+
+    Parameters
+    ----------
+    c : invoke.Context
+        Invoke context.
+    input : str, default="data/processed/cleaned_house_data.csv"
+        Path to the CLEANED input CSV file.
+    output : str, default="data/processed/engineered_features.csv"
+        Path for the ENGINEERED CSV output.
+    preprocessor : str, default="models/trained/preprocessor.pkl"
+        Path for saving the fitted preprocessor (pickle).
+    """
+    _venv_notice()
+    ensure_dirs(c)  # make sure directories exist
+
+    # Lazy import: keep tasks lightweight unless the command is used
+    from src.features.processor import run_feature_engineering
+
+    print("⚙️  Running feature engineering...")
+    df_trans = run_feature_engineering(input, output, preprocessor)
+    print(f"✅ Engineered data saved to {output} (rows={len(df_trans)})")
+    print(f"💾 Preprocessor saved to {preprocessor}")
+
+
+@task(
+    help={
+        "k": "Only run tests matching expression (e.g., -k 'features and not slow')",
+        "m": "Only run tests with marker (e.g., -m 'integration')",
+    }
+)
+def features_test(c, k: str | None = None, m: str | None = None) -> None:
+    """
+    Run ONLY the feature engineering test suite.
+
+    Parameters
+    ----------
+    c : invoke.Context
+        Invoke context.
+    k : str, optional
+        Pytest -k expression to select feature tests.
+    m : str, optional
+        Pytest -m marker to select feature tests.
+    """
+    _venv_notice()
+    target = "tests/features"
+    cmd = f"pytest {PYTEST_DEFAULTS} {target}"
+    if k:
+        cmd += f' -k "{k}"'
+    if m:
+        cmd += f' -m "{m}"'
+    _run(c, cmd)
+
+
+@task(
+    help={
+        "input":        "Path to CLEANED CSV (default: data/processed/cleaned_house_data.csv)",
+        "output":       "Path for ENGINEERED CSV (default: data/processed/engineered_features.csv)",
+        "preprocessor": "Path to save fitted preprocessor (default: models/trained/preprocessor.pkl)",
+        "skip_tests":   "Set true to skip running tests first (default: false)",
+    }
+)
+def features(
+    c,
+    input: str = "data/processed/cleaned_house_data.csv",
+    output: str = "data/processed/engineered_features.csv",
+    preprocessor: str = "models/trained/preprocessor.pkl",
+    skip_tests: bool | str = False,
+) -> None:
+    """
+    Run feature-engineering *tests first*, then the pipeline.
+
+    Steps
+    -----
+    1. (Optional) Run `tests/features` via pytest.
+    2. Ensure directories exist.
+    3. Run `engineer` task to build engineered features + preprocessor.
+
+    Parameters
+    ----------
+    c : invoke.Context
+        Invoke context.
+    input : str, default="data/processed/cleaned_house_data.csv"
+        Path to the CLEANED input CSV file.
+    output : str, default="data/processed/engineered_features.csv"
+        Path for the ENGINEERED CSV output.
+    preprocessor : str, default="models/trained/preprocessor.pkl"
+        Path for saving the fitted preprocessor (pickle).
+    skip_tests : bool or str, default=False
+        Whether to skip running the feature tests before the pipeline.
+        Accepts common truthy/falsey strings.
+    """
+    _venv_notice()
+
+    if not _to_bool(skip_tests):
+        print("🧪 Running feature-engineering tests...")
+        features_test(c)
+
+    engineer(c, input=input, output=output, preprocessor=preprocessor)
