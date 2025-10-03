@@ -1,0 +1,23 @@
+# ---------------------------------------------
+# ⚡ API & WEB FRAMEWORK
+# ---------------------------------------------
+fastapi>=0.118.0       # Web framework for building APIs
+uvicorn>=0.37.0        # ASGI server to run FastAPI apps
+
+# ---------------------------------------------
+# 📊 DATA PROCESSING & ANALYSIS
+# ---------------------------------------------
+pandas>=2.3.3          # Data manipulation and analysis
+numpy>=2.3.3           # Numerical operations and arrays
+
+# ---------------------------------------------
+# 🧠 MACHINE LEARNING
+# ---------------------------------------------
+scikit-learn>=1.7.2    # Core ML models, preprocessing, and evaluation
+xgboost>=3.0.5         # Gradient-boosted decision trees for tabular data
+joblib>=1.5.2          # Model persistence (saving/loading)
+
+# ---------------------------------------------
+# ⚙️ UTILITIES
+# ---------------------------------------------
+pyyaml>=6.0.3          # YAML parsing for configs
