@@ -39,3 +39,6 @@ dist/
 
 # Ignore all .pkl files (models, preprocessors, etc.)
 *.pkl
+
+# Ignore mlfow mlruns
+# mlruns/
