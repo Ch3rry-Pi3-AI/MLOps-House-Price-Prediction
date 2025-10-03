@@ -1,4 +1,3 @@
-
 # run tests
 invoke test
 
@@ -24,3 +23,19 @@ invoke preprocess --policy=clip --target=SalePrice --iqr=2.0
 # Create common dirs
 invoke ensure-dirs
 
+# run only feature engineering tests
+invoke features-test
+
+# run feature pipeline only
+invoke engineer
+
+# run tests first, then feature pipeline
+invoke features
+
+# run feature pipeline but skip tests
+invoke features --skip-tests
+
+# run feature pipeline with custom paths
+invoke features --input=data/processed/cleaned_house_data.csv \
+                --output=data/processed/engineered_features.csv \
+                --preprocessor=models/trained/preprocessor.pkl
