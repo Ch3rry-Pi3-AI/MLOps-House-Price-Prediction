@@ -3,16 +3,16 @@ model:
   feature_sets:
     rfe:
     - '0'
-    - '2'
+    - '1'
     - '3'
     - '4'
     - '5'
     - '9'
+    - '10'
     - '12'
     - '13'
     - '14'
-    - '15'
-  mae: 9885.432156233008
+  mae: 11363.09017957508
   name: house_price_model
   parameters:
     alpha: 0.9
@@ -21,20 +21,20 @@ model:
     init: null
     learning_rate: 0.1
     loss: squared_error
-    max_depth: 3
+    max_depth: 10
     max_features: null
     max_leaf_nodes: null
     min_impurity_decrease: 0.0
-    min_samples_leaf: 1
-    min_samples_split: 2
+    min_samples_leaf: 2
+    min_samples_split: 5
     min_weight_fraction_leaf: 0.0
     n_estimators: 100
     n_iter_no_change: null
-    random_state: null
+    random_state: 5901
     subsample: 1.0
     tol: 0.0001
     validation_fraction: 0.1
     verbose: 0
     warm_start: false
-  r2_score: 0.9962553512966004
+  r2_score: 0.9963915377073045
   target_variable: price
