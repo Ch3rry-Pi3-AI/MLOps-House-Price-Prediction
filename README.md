@@ -157,7 +157,7 @@ invoke cov
 
 ## **Continuous Integration (CI/CD)**
 
-This stage also introduces a **GitHub Actions workflow** (`.github/workflows/clean.yml`) for automated testing and linting.
+This stage also introduces a **GitHub Actions workflow** (`.github/workflows/ci.yml`) for automated testing and linting.
 
 * ✅ Runs `pytest` on every push and pull request
 * ✅ Ensures code quality via `ruff` and optional `black` formatting
