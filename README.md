@@ -3,9 +3,12 @@
 This branch extends the **MLOps House Price Prediction** project by implementing the **data preprocessing pipeline**.
 It introduces a modular structure under `src/data/` for loading, cleaning, schema validation, and outlier handling, alongside a full test suite, automation via `invoke`, and GitHub Actions for CI/CD.
 
+A new **data preprocessing notebook** (`notebooks/01_data_preprocessing.ipynb`) has also been added.
+This represents the **data scientist's exploratory workflow**, where preprocessing logic is first developed interactively. Once validated, it is handed off to an **ML engineer**, who modularises the code under `src/data/` and integrates it into the CI/CD system.
+
 The pipeline can now take raw data (`data/raw/`) and output cleaned data (`data/processed/cleaned_house_data.csv`) with missing value imputation and configurable outlier handling.
 
-
+---
 
 ## **Project Structure**
 
@@ -25,6 +28,7 @@ mlops-house-price-prediction/
 ├── models/
 │   └── trained/
 ├── notebooks/
+│   └── 01_data_preprocessing.ipynb # 🚀 NEW: Data scientist's preprocessing notebook
 ├── src/
 │   ├── api/
 │   ├── data/                       # 🚀 NEW: Preprocessing modules
@@ -57,7 +61,7 @@ mlops-house-price-prediction/
 
 > Note: Any `.venv/` folder is ignored and should not be committed.
 
-
+---
 
 ## **Development Environment**
 
@@ -112,72 +116,61 @@ uv pip install -r requirements.txt
 deactivate
 ```
 
-
+---
 
 ## **Running Preprocessing**
 
-You can now run the preprocessing pipeline in two ways:
+You can now run the preprocessing pipeline in four ways:
 
-### 1. Direct Python Execution
+### 1. Notebook Execution (Data Scientist Workflow)
+
+Run and explore `notebooks/01_data_preprocessing.ipynb` interactively.
+This is where preprocessing logic is first designed and validated.
+
+### 2. Direct Python Execution (ML Engineer Workflow)
 
 ```bash
 python -m src.data.processor
 ```
 
-This will load the raw dataset from `data/raw/house_data.csv` and write the cleaned version to `data/processed/cleaned_house_data.csv`.
+Runs the pipeline with defaults:
+`data/raw/house_data.csv` → `data/processed/cleaned_house_data.csv`.
 
-
-
-### 2. Using Invoke Tasks
-
-The project includes an `invoke`-based task runner (`tasks.py`) with common commands:
+### 3. Command-Line Interface (CLI)
 
 ```bash
-# run tests
-invoke test
-
-# run a subset
-invoke test -k cleaning
-
-# run with coverage
-invoke cov
-
-# optional: if you install black/ruff
-invoke fmt
-invoke lint
-
-# clean caches
-invoke clean
-
-# Preprocess with defaults
-invoke preprocess
-
-# Preprocess with clipping and a different target
-invoke preprocess --policy=clip --target=SalePrice --iqr=2.0
-
-# Create common dirs
-invoke ensure-dirs
+python -m src.data.cli --in data/raw/house_data.csv --out data/processed/cleaned_house_data.csv --policy filter
 ```
 
+Supports YAML configs and runtime overrides.
 
+### 4. Using Invoke Tasks
+
+```bash
+invoke preprocess
+invoke preprocess --policy=clip --target=price --iqr=2.0
+invoke test
+invoke cov
+```
+
+---
 
 ## **Continuous Integration (CI/CD)**
 
-This stage also introduces a **GitHub Actions workflow** (`.github/workflows/ci.yml`) for automated testing and linting.
+This stage also introduces a **GitHub Actions workflow** (`.github/workflows/clean.yml`) for automated testing and linting.
 
 * ✅ Runs `pytest` on every push and pull request
 * ✅ Ensures code quality via `ruff` and optional `black` formatting
 * ✅ Provides quick feedback in GitHub before merging
 
-You can view the workflow under **Actions** in the GitHub repo to confirm all tests and checks pass.
-
-
+---
 
 ✅ With this stage complete, the project now has:
 
-* A fully modular preprocessing pipeline
+* A **data scientist's notebook** for preprocessing exploration (`01_data_preprocessing.ipynb`)
+* A fully modular preprocessing pipeline in `src/data/`
 * Automated tests and coverage
 * Developer productivity tasks via Invoke
 * Continuous integration checks via GitHub Actions
 
-This sets the foundation for **feature engineering** in the next stage.
+This clearly separates the **exploration stage** (notebooks) from the **engineering stage** (modules + CI/CD), setting the foundation for **exploratory data analysis (EDA)** in the next branch.
