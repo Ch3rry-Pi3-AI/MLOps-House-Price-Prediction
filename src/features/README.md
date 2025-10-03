@@ -86,10 +86,10 @@ python -m src.features.cli \
   --preprocessor models/trained/preprocessor.pkl
 ```
 
-Run with YAML config (`engineer.yaml`):
+Run with YAML config (`fe_config.yaml`):
 
 ```bash
-python -m src.features.cli --config=engineer.yaml
+python -m src.features.cli --config=fe_config.yaml
 ```
 
 **CLI precedence**
@@ -134,7 +134,7 @@ preprocessor: models/trained/preprocessor.pkl
 Use it via:
 
 ```bash
-python -m src.features.cli --config=engineer.yaml
+python -m src.features.cli --config=fe_config.yaml
 ```
 
 
@@ -146,7 +146,7 @@ This folder implements a **modular feature engineering stage** with:
 * `builders.py` → reusable feature & preprocessor definitions
 * `processor.py` → orchestration and persistence (CSV + pickle)
 * `config.py` → centralised configuration with a YAML loader
-* `cli.py` → simple CLI with flags + YAML support (`engineer.yaml`)
+* `cli.py` → simple CLI with flags + YAML support (`fe_config.yaml`)
 * Outputs saved consistently to `data/processed/` and `models/trained/`
 
 The pipeline is **robust, testable, and production-ready**, providing engineered features and a reusable preprocessor for the final stage: **model training**.
