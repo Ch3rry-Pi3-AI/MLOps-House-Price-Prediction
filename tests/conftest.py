@@ -29,7 +29,7 @@ def df_mixed() -> pd.DataFrame:
     Features
     --------
     price : float
-        Contains typical values (100,000–120,000), a NaN, and a high outlier.
+        Contains typical values (100,000-120,000), a NaN, and a high outlier.
     bedrooms : int
         Mixture of integers and missing values.
     city : str
@@ -57,7 +57,7 @@ def df_numeric_only() -> pd.DataFrame:
     Features
     --------
     price : float
-        Mostly clustered around 90–110 with one extreme value (10,000).
+        Mostly clustered around 90-110 with one extreme value (10,000).
 
     Returns
     -------
