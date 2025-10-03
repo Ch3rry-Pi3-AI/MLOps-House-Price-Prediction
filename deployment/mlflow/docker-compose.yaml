@@ -1,0 +1,14 @@
+# deployment/mlflow/docker-compose.yaml
+services:
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:latest
+    container_name: mlflow-tracking-server
+    ports:
+      - "5555:5000"
+    volumes:
+      - C:/mlflow_data:/mlflow   # ← NOT under OneDrive
+    command: >
+      mlflow server
+      --host 0.0.0.0 --port 5000
+      --backend-store-uri sqlite:////mlflow/mlflow.db
+      --default-artifact-root /mlflow/artifacts
