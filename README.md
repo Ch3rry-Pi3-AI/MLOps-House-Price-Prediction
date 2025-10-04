@@ -1,13 +1,14 @@
-# **Model Training Stage**
+Perfect 👌 — here’s the next stage’s **README**, adapted for your **deployment branch**.
+It keeps the same professional tone and structure as your earlier stages while introducing Docker, FastAPI, Streamlit, and Docker Compose integration.
 
-This branch extends the **MLOps House Price Prediction** project by implementing the **model training pipeline**.
-It introduces a modular structure under `src/models/` for estimator creation, orchestration, and CLI, a full test suite under `tests/models/`, and updated automation via `invoke`.
 
-A new notebook supports the **data scientist → ML engineer** workflow:
 
-* `notebooks/04_model_training.ipynb` – interactive development of training and MLflow logging prior to modularisation.
+# **Model Deployment Stage**
 
-The pipeline consumes the **engineered features** produced by the feature engineering stage and outputs a **trained model** (`.pkl`), fully logged and registered in **MLflow** with metrics, parameters, tags, and versioning.
+This branch extends the **MLOps House Price Prediction** project by implementing the **model deployment pipeline**.
+It introduces a full deployment stack built with **FastAPI** (for inference) and **Streamlit** (for the UI), both containerised using **Docker**, and orchestrated together with **Docker Compose**.
+
+This stage completes the MLOps lifecycle — transforming trained models and preprocessing pipelines into live, user-facing services that can be built, run, and published anywhere.
 
 
 
@@ -17,235 +18,176 @@ The pipeline consumes the **engineered features** produced by the feature engine
 mlops-house-price-prediction/
 ├── .venv/
 ├── .github/
-│   └── workflows/
-│       └── ci.yml
 ├── data/
-│   ├── raw/
-│   └── processed/
-│       ├── cleaned_house_data.csv
-│       ├── engineered_features.csv
-├── deployment/
-│   ├── kubernetes/
-│   └── mlflow/
 ├── models/
-│   └── trained/
-│       ├── preprocessor.pkl
-│       └── house_price_model.pkl         # 🚀 NEW: trained regression model (pickle)
 ├── notebooks/
-│   ├── 01_data_preprocessing.ipynb
-│   ├── 02_eda.ipynb
-│   ├── 03_feature_engineering.ipynb
-│   └── 04_model_training.ipynb           # 🚀 NEW: Model training notebook
 ├── src/
-│   ├── api/
+│   ├── api/                                # 🚀 NEW: FastAPI inference service
+│   │   ├── __init__.py
+│   │   ├── inference.py                    #   Loads model + preprocessor, defines predict()
+│   │   ├── main.py                         #   FastAPI entrypoint and routing
+│   │   ├── schemas.py                      #   Pydantic request/response models
+│   │   └── requirements.txt                #   FastAPI + Uvicorn dependencies
 │   ├── data/
-│   ├── features/
-│   └── models/                           # 🚀 NEW: Model training modules
-│       ├── builders.py                   #   Estimator factory (sklearn/xgboost)
-│       ├── processor.py                  #   Orchestrator (train + MLflow + persist)
-│       ├── config.py                     #   TrainingConfig dataclass + YAML loader
-│       └── cli.py                        #   Command-line entrypoint
-├── streamlit_app/
-├── tests/
-│   ├── conftest.py
-│   ├── data/
-│   ├── features/
-│   └── models/                           # 🚀 NEW: Model training tests
-│       ├── conftest.py                   #   Fixtures (synthetic df with target `price`)
-│       ├── test_builders_models.py       #   Tests for estimator factory
-│       ├── test_config_training.py       #   Tests for config loading
-│       ├── test_processor_training_integration.py  #   End-to-end training + MLflow
-│       └── test_cli_models.py            #   CLI smoke test
-├── .gitignore
-├── .python-version
-├── pyproject.toml
+├── streamlit_app/                          # 🚀 NEW: Streamlit front-end
+│   ├── app.py                              #   Web UI calling the FastAPI backend
+│   ├── requirements.txt                    #   Streamlit + Requests dependencies
+│   └── Dockerfile                          #   Streamlit container definition
+├── Dockerfile                              # 🚀 NEW: FastAPI container definition
+├── docker-compose.yaml                     # 🚀 NEW: Multi-service orchestration (FastAPI + Streamlit)
+├── tasks.py
 ├── README.md
-├── requirements.txt
-├── tasks.py                              # ✅ Updated: includes model tasks
 └── uv.lock
 ```
 
-> Note: Any `.venv/` folder is ignored and should not be committed.
+> Note: Any `.venv/` directory remains ignored and should not be committed.
 
 
 
-## **Module Overview (with build order)**
+## **Module Overview**
 
-### 1) `src/models/builders.py` – Model Builders
+### 🧠 `src/api/` — FastAPI Inference Service
 
-* `get_model_instance(name, params)`: returns a scikit-learn or XGBoost estimator.
-* Supports: `LinearRegression`, `RandomForestRegressor`, `GradientBoostingRegressor`, `XGBRegressor`.
-* Raises `ValueError` for unsupported names.
+* Loads the trained model (`house_price_model.pkl`) and preprocessor.
+* Exposes two routes:
 
+  * **`/health`** — simple status check.
+  * **`/predict`** — accepts JSON matching `HousePredictionRequest`, returns predicted price.
+* Runs via **Uvicorn** in Docker on port `8000`.
 
+### 🎨 `streamlit_app/` — Streamlit Frontend
 
-### 2) `src/models/processor.py` – Orchestrator
-
-* Loads engineered dataset and target.
-* Splits train/test.
-* Trains the configured model.
-* Logs parameters, metrics, model artifact, and environment to **MLflow**.
-* Registers model with alias `@staging`.
-* Saves the trained `.pkl` to `models/trained/`.
-
+* Provides an interactive dashboard for user input.
+* Calls the FastAPI backend using the `API_URL` environment variable (e.g. `http://fastapi:8000`).
+* Displays predicted price, confidence interval, and feature importance.
+* Runs via **Streamlit** in Docker on port `8501`.
 
 
-### 3) `src/models/config.py` – Configuration
 
-* `TrainingConfig` dataclass, wrapping model name, parameters, and target.
-* `load_training_config(path)` loads YAML into `TrainingConfig`.
+## **Docker & Compose Overview**
 
-Example config (`configs/model_config.yaml`):
+### 🧩 Dockerfiles
+
+* **Root `Dockerfile`** → builds FastAPI backend.
+* **`streamlit_app/Dockerfile`** → builds Streamlit frontend.
+
+### ⚙️ `docker-compose.yaml`
+
+Defines both containers and their networking:
 
 ```yaml
-model:
-  name: house_price_model
-  best_model: GradientBoosting
-  parameters:
-    n_estimators: 200
-    learning_rate: 0.05
-    max_depth: 3
-  target_variable: price
+services:
+  fastapi:
+    build: .
+    ports: ["8000:8000"]
+
+  streamlit:
+    build: ./streamlit_app
+    ports: ["8501:8501"]
+    environment:
+      API_URL: http://fastapi:8000
+    depends_on:
+      - fastapi
 ```
 
-
-
-### 4) `src/models/cli.py` – CLI Entrypoint
-
-* Flags: `--config`, `--data`, `--models-dir`, `--mlflow-tracking-uri`.
-* Runs training directly from the shell.
-* Supports YAML-first configs, with CLI overrides.
+Docker Compose automatically links the two containers, so the Streamlit UI can reach the FastAPI service via its hostname `fastapi`.
 
 
 
-## **Development Environment**
+## **Build and Run the Application**
 
-Same environment as earlier stages. If you haven’t already:
+### 🏗️ Build both images
 
 ```bash
-uv venv --python python3.13
-
-# On Linux / macOS
-source .venv/bin/activate
-
-# On Windows (PowerShell)
-.venv\Scripts\Activate.ps1
-
-# On Windows (Git Bash)
-source .venv/Scripts/activate
-
-uv pip install -r requirements.txt
+docker compose build
 ```
 
-Ensure common directories exist:
+### 🚀 Run the full stack
 
 ```bash
-invoke ensure-dirs
+docker compose up
+# or detached:
+docker compose up -d
 ```
 
+### 🌐 Access the apps
 
-
-## **Running Model Training**
-
-You can run this stage in several ways.
-
-### 1) Notebook Execution (Data Scientist Workflow)
-
-* Prototype training in `notebooks/04_model_training.ipynb`.
-* Once validated, promote code into `src/models/` and rely on CLI + CI.
+| Service       | URL                                                      |
+| - | -- |
+| **FastAPI**   | [http://localhost:8000/docs](http://localhost:8000/docs) |
+| **Streamlit** | [http://localhost:8501](http://localhost:8501)           |
 
 
 
-### 2) Direct Python Execution (ML Engineer Workflow)
+## **Testing the FastAPI Endpoint**
+
+### ✅ Health check
 
 ```bash
-python -m src.models.processor
+curl http://localhost:8000/health
 ```
 
-Runs with defaults:
-`configs/model_config.yaml` + `data/processed/engineered_features.csv`
-→ trains and saves `models/trained/house_price_model.pkl`.
-
-
-
-### 3) Command-Line Interface (CLI)
-
-**Explicit flags**
+### 🧠 Prediction request
 
 ```bash
-python -m src.models.cli \
-  --config configs/model_config.yaml \
-  --data data/processed/engineered_features.csv \
-  --models-dir models \
-  --mlflow-tracking-uri http://localhost:5555
+curl -X POST "http://localhost:8000/predict" \
+     -H "Content-Type: application/json" \
+     -d '{"sqft":2000,"bedrooms":3,"bathrooms":2,"year_built":2010,"condition":"Good"}'
+```
+
+Expected response:
+
+```json
+{"predicted_price": 354820.45, "currency": "USD"}
 ```
 
 
 
-### 4) Invoke Task Runner
+## **Publishing to Docker Hub**
+
+### 1️⃣ Log in
 
 ```bash
-# run only model tests
-invoke models-test
-
-# run training pipeline only
-invoke train
-
-# run tests first, then the training pipeline (recommended)
-invoke models
-
-# run training pipeline with custom MLflow URI (Docker MLflow server)
-invoke models --mlflow-tracking-uri=http://localhost:5555
+docker login
+# username: ch3rrypi3
 ```
 
-
-
-## **Testing**
-
-The suite under `tests/models/` provides both unit and integration coverage:
-
-* **Unit:**
-
-  * `test_builders_models.py` (estimator mapping)
-  * `test_config_training.py` (YAML → dataclass)
-* **Integration:**
-
-  * `test_processor_training_integration.py` (end-to-end training, MLflow run + pickle output)
-* **CLI:**
-
-  * `test_cli_models.py` (smoke test for `src.models.cli`)
-
-Run all tests:
+### 2️⃣ Push images
 
 ```bash
-pytest -q
+docker push ch3rrypi3/fastapi:dev
+docker push ch3rrypi3/streamlit:dev
 ```
 
-Run only model-training tests:
+### 3️⃣ Verify
 
-```bash
-pytest tests/models -v
-```
-
+Check your repositories at
+👉 [https://hub.docker.com/repositories/ch3rrypi3](https://hub.docker.com/repositories/ch3rrypi3)
 
 
-## **Continuous Integration (CI/CD)**
 
-Your GitHub Actions workflow (`.github/workflows/ci.yml`) automatically runs `pytest` on every push/PR.
-It now includes the **model training** tests alongside preprocessing and feature engineering.
-Add code, push, and CI will tell you whether everything still passes ✅.
+## **Useful Docker Commands**
+
+| Purpose                                 | Command                                   |
+|  | -- |
+| List running containers                 | `docker ps`                               |
+| List all containers (including stopped) | `docker ps -a`                            |
+| Stop containers                         | `docker compose down`                     |
+| Remove all containers, images, networks | `docker system prune -a`                  |
+| View image list                         | `docker images`                           |
+| View logs (live)                        | `docker compose logs -f`                  |
+| Build single image                      | `docker build -t ch3rrypi3/fastapi:dev .` |
+| Push image to Docker Hub                | `docker push ch3rrypi3/fastapi:dev`       |
 
 
 
 ## ✅ Summary
 
-With this stage, the project now has:
+With this stage, the project now delivers a **fully containerised, end-to-end ML application**:
 
-* A **model training** pipeline (`src/models/`) producing a trained regression model.
-* A supporting **notebook** for training (`04_model_training.ipynb`).
-* A dedicated **test suite** for this stage (`tests/models/`).
-* Updated **Invoke** tasks for reproducible workflows.
-* Seamless integration with **MLflow** for experiment tracking and model registry.
-* CI coverage for model training logic, ensuring robustness and reproducibility.
+* **FastAPI backend** for real-time inference.
+* **Streamlit frontend** for an interactive UI.
+* **Docker and Docker Compose** for seamless local orchestration.
+* **Docker Hub** integration for image distribution and versioning.
 
-This clearly separates the **exploration** (notebooks) from the **engineering** (modules + tests + CI), paving the way for the next stage: **deployment**.
+The full MLOps lifecycle is now complete — from data ingestion and feature engineering to model training, deployment, and interactive visualisation. 🚀
