@@ -1,0 +1,32 @@
+services:
+  # -----------------------------------------------------------------
+  # 🧠 FastAPI Backend Service
+  # -----------------------------------------------------------------
+  fastapi:
+    image: ch3rrypi3/fastapi:dev
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fastapi-service
+    ports:
+      - "8000:8000"
+    # optional: ensure app restarts automatically if it crashes
+    restart: unless-stopped
+
+  # -----------------------------------------------------------------
+  # 🎨 Streamlit Frontend Service
+  # -----------------------------------------------------------------
+  streamlit:
+    image: ch3rrypi3/streamlit:dev
+    build:
+      context: ./streamlit_app
+      dockerfile: Dockerfile
+    container_name: streamlit-service
+    ports:
+      - "8501:8501"
+    environment:
+      # This uses Docker’s internal DNS: “fastapi” resolves to that container
+      API_URL: http://fastapi:8000
+    depends_on:
+      - fastapi
+    restart: unless-stopped
