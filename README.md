@@ -1,253 +1,205 @@
-# **API Module — House Price Prediction (Inference Stage)**
+# **Model Inference Stage**
 
-This folder contains the **FastAPI inference service** responsible for real-time and batch predictions in the **MLOps House Price Prediction** project.
-It loads the trained estimator and preprocessor, validates incoming data with **Pydantic**, performs **model inference**, and returns structured JSON responses — including a simple ±10% confidence band.
+This branch extends the **MLOps House Price Prediction** project by implementing the **model inference pipeline**.
+It introduces a production-ready inference stack composed of:
 
-The API module forms the backend of the **inference stack**, complementing the **Streamlit frontend** for user interaction. Together, these services transform the trained model into a production-ready prediction interface.
+* **FastAPI** – serves predictions from the trained model.
+* **Streamlit** – provides an intuitive web interface for real-time user interaction.
+* **Docker & Docker Compose** – containerise and orchestrate both services for seamless execution.
 
-
-
-## **Design Overview**
-
-The design follows **single-responsibility principles** for clarity and maintainability:
-
-* `schemas.py` → Pydantic request and response models
-* `inference.py` → model and preprocessor loading, single and batch prediction logic
-* `main.py` → FastAPI app setup, routing, CORS configuration, and OpenAPI documentation
-* `requirements.txt` → runtime dependencies for the inference layer
-
-This architecture ensures that the API remains **modular, testable, and easily portable** — whether running locally, in Docker, or through a CI/CD environment.
+This stage operationalises the trained model and preprocessor into a **live, queryable inference service** with an accompanying UI for end-users.
 
 
 
-## **Module Structure**
+## **Project Structure**
 
 ```
-src/api/
-├── schemas.py         # Pydantic models (request & response)
-├── inference.py       # Loads model/preprocessor and performs inference
-├── main.py            # FastAPI app with /health, /predict, /batch-predict
-├── requirements.txt   # Inference service dependencies
-└── img/
-    └── fastapi_backend.png   # Swagger UI view of /docs
+mlops-house-price-prediction/
+├── .venv/
+├── .github/
+├── data/
+├── models/
+├── notebooks/
+├── src/
+│   ├── api/                                # 🧠 FastAPI inference service
+│   │   ├── inference.py                    #   Loads model + preprocessor, defines predict()
+│   │   ├── main.py                         #   FastAPI entrypoint and routing
+│   │   ├── schemas.py                      #   Pydantic request/response models
+│   │   └── requirements.txt                #   FastAPI + Uvicorn dependencies
+│   ├── data/
+├── streamlit_app/                          # 🎨 Streamlit user interface
+│   ├── app.py                              #   Web UI calling the FastAPI backend
+│   ├── requirements.txt                    #   Streamlit + Requests dependencies
+│   └── Dockerfile                          #   Streamlit container definition
+├── img/                                    # 🖼️ Media assets (GIFs, screenshots, etc.)
+│   └── streamlit_app.gif                   #   Demonstration of the inference app
+├── Dockerfile                              # FastAPI container definition
+├── docker-compose.yaml                     # Multi-service orchestration (FastAPI + Streamlit)
+├── tasks.py
+├── README.md
+└── uv.lock
 ```
 
-**Expected Model Artefacts:**
-
-```
-models/trained/
-├── house_price_model.pkl
-└── preprocessor.pkl
-```
+> Note: Any `.venv/` directory remains ignored and should not be committed.
 
 
 
-## **Endpoints**
+## **Inference Overview**
 
-### 1️⃣ `GET /health`
+### 🧠 `src/api/` — FastAPI Inference Service
 
-Health check endpoint confirming that the API and model are live.
+* Loads the trained model (`house_price_model.pkl`) and preprocessor.
+* Exposes two endpoints:
 
-**Response:**
-
-```json
-{ "status": "healthy", "model_loaded": true }
-```
-
-
-
-### 2️⃣ `POST /predict`
-
-Predicts the price for a single house.
-
-**Request** (`HousePredictionRequest`):
-
-```json
-{
-  "sqft": 1800.0,
-  "bedrooms": 3,
-  "bathrooms": 2.0,
-  "location": "suburban",
-  "year_built": 2005,
-  "condition": "Good"
-}
-```
-
-**Response** (`PredictionResponse`):
-
-```json
-{
-  "predicted_price": 352000.75,
-  "confidence_interval": [316800.68, 387200.83],
-  "features_importance": {"sqft": 0.42, "bedrooms": 0.25, "bathrooms": 0.18},
-  "prediction_time": "2025-10-03T18:30:12.345678"
-}
-```
+  * **`/health`** — health check to confirm the API is live.
+  * **`/predict`** — accepts JSON input conforming to `HousePredictionRequest` and returns the predicted house price.
+* Runs via **Uvicorn** on port `8000` inside its container.
 
 
 
-### 3️⃣ `POST /batch-predict`
+### 🎨 `streamlit_app/` — Streamlit Frontend
 
-Generates predictions for multiple records in a single request.
+* Provides an interactive web interface for inputting house attributes.
+* Sends requests to the FastAPI backend using the `API_URL` environment variable (e.g., `http://fastapi:8000`).
+* Displays:
 
-**Request** (`List[HousePredictionRequest]`):
-
-```json
-[
-  { "sqft": 1200, "bedrooms": 2, "bathrooms": 1.0, "location": "urban", "year_built": 1998, "condition": "Fair" },
-  { "sqft": 2400, "bedrooms": 4, "bathrooms": 3.0, "location": "rural", "year_built": 2012, "condition": "Excellent" }
-]
-```
-
-**Response** (`List[float]`):
-
-```json
-[245000.0, 421300.5]
-```
-
-
-
-## **Swagger /docs Interface**
-
-The FastAPI service automatically generates a **Swagger UI** at [`/docs`](http://127.0.0.1:8000/docs), where you can explore and test all available endpoints interactively.
+  * Predicted price
+  * Model used
+  * Top three most influential factors
+  * Prediction latency (in milliseconds)
+* Runs via **Streamlit** on port `8501` inside its container.
 
 <p align="center">
-  <img src="src/api/img/fastapi_backend.png" alt="FastAPI Swagger UI" width="800"/>
+  <img src="img/streamlit_app.gif" alt="Streamlit App Demo" width="800"/>
 </p>
 
 
 
-## **Request / Response Schemas (Summary)**
+## **Containerisation & Orchestration**
 
-### 🧾 `HousePredictionRequest`
+### 🧩 Dockerfiles
 
-| Field        | Type              | Description                              |
-|  | -- | - |
-| `sqft`       | `float (>0)`      | Property area in square feet             |
-| `bedrooms`   | `int (>=1)`       | Number of bedrooms                       |
-| `bathrooms`  | `float (>0)`      | Number of bathrooms                      |
-| `location`   | `str`             | e.g., `"urban"`, `"suburban"`, `"rural"` |
-| `year_built` | `int (1800–2023)` | Construction year                        |
-| `condition`  | `str`             | e.g., `"Good"`, `"Excellent"`, `"Fair"`  |
+* **Root `Dockerfile`** → builds the FastAPI inference service.
+* **`streamlit_app/Dockerfile`** → builds the Streamlit interface.
 
-### 📦 `PredictionResponse`
+### ⚙️ `docker-compose.yaml`
 
-| Field                 | Type               | Description                         |
-|  |  | -- |
-| `predicted_price`     | `float`            | Predicted house price               |
-| `confidence_interval` | `List[float]`      | Lower and upper bounds              |
-| `features_importance` | `Dict[str, float]` | Relative importance of top features |
-| `prediction_time`     | `str`              | ISO-8601 UTC timestamp              |
+Defines and links both services:
+
+```yaml
+services:
+  fastapi:
+    build: .
+    ports: ["8000:8000"]
+
+  streamlit:
+    build: ./streamlit_app
+    ports: ["8501:8501"]
+    environment:
+      API_URL: http://fastapi:8000
+    depends_on:
+      - fastapi
+```
+
+Docker Compose automatically networks the two containers, so the Streamlit frontend communicates with the FastAPI backend via the hostname `fastapi`.
 
 
 
-## **Running the Inference API**
+## **Building and Running the Inference Stack**
 
-> Ensure your trained artefacts are available at
-> `models/trained/house_price_model.pkl` and `models/trained/preprocessor.pkl`.
-
-### 🧪 Option A — Run with `uv`
+### 🏗️ Build both images
 
 ```bash
-# From project root
-uv pip install -r src/api/requirements.txt
-uv run uvicorn src.api.main:app --reload
+docker compose build
 ```
 
-Open your browser at:
-
-* [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) → interactive Swagger UI
-* [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health) → simple health check
-
-### 🧰 Option B — Run with plain `pip`
+### 🚀 Launch the stack
 
 ```bash
-pip install -r src/api/requirements.txt
-uvicorn src.api.main:app --reload
+docker compose up
+# or detached mode:
+docker compose up -d
 ```
 
+### 🌐 Access the services
+
+| Service       | URL                                                      |
+| - | -- |
+| **FastAPI**   | [http://localhost:8000/docs](http://localhost:8000/docs) |
+| **Streamlit** | [http://localhost:8501](http://localhost:8501)           |
 
 
-## **Quick Usage Examples**
 
-### 💻 cURL
+## **Testing the FastAPI Endpoint**
+
+### ✅ Health Check
 
 ```bash
-curl -X POST http://127.0.0.1:8000/predict \
-  -H "Content-Type: application/json" \
-  -d '{"sqft":1800,"bedrooms":3,"bathrooms":2.0,"location":"suburban","year_built":2005,"condition":"Good"}'
+curl http://localhost:8000/health
 ```
 
-### ⚙️ HTTPie
+### 🧠 Example Prediction Request
 
 ```bash
-http POST :8000/predict sqft:=1800 bedrooms:=3 bathrooms:=2.0 location=suburban year_built:=2005 condition=Good
+curl -X POST "http://localhost:8000/predict" \
+     -H "Content-Type: application/json" \
+     -d '{"sqft":2000,"bedrooms":3,"bathrooms":2,"year_built":2010,"condition":"Good"}'
 ```
 
-### 🐍 Python client
+Expected response:
 
-```python
-import requests
-
-payload = {
-    "sqft": 1800,
-    "bedrooms": 3,
-    "bathrooms": 2.0,
-    "location": "suburban",
-    "year_built": 2005,
-    "condition": "Good",
-}
-r = requests.post("http://127.0.0.1:8000/predict", json=payload, timeout=10)
-print(r.json())
+```json
+{"predicted_price": 354820.45, "currency": "USD"}
 ```
 
 
 
-## **Configuration & Environment**
+## **Publishing to Docker Hub**
 
-Model paths are defined in `src/api/inference.py`:
+### 1️⃣ Log in
 
-```python
-MODEL_PATH = "models/trained/house_price_model.pkl"
-PREPROCESSOR_PATH = "models/trained/preprocessor.pkl"
+```bash
+docker login
+# username: ch3rrypi3
 ```
 
-If you run inference in a container or cloud environment, consider replacing hardcoded paths with environment variables or mounted volumes.
+### 2️⃣ Push the images
 
-
-
-## **CORS Configuration**
-
-`main.py` currently allows all origins for development:
-
-```python
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"], allow_credentials=True,
-    allow_methods=["*"], allow_headers=["*"],
-)
+```bash
+docker push ch3rrypi3/fastapi:inference
+docker push ch3rrypi3/streamlit:inference
 ```
 
-For production, restrict allowed origins (e.g. `["https://yourdomain.com"]`).
+### 3️⃣ Verify upload
+
+Check your repositories at
+👉 [https://hub.docker.com/repositories/ch3rrypi3](https://hub.docker.com/repositories/ch3rrypi3)
 
 
 
-## **Extending the Inference Service**
+## **Useful Docker Commands**
 
-* **Confidence Intervals:** Replace static ±10% with data-driven intervals (quantile regression, conformal prediction, etc.)
-* **Explainability:** Populate `features_importance` dynamically (e.g., SHAP or feature importances)
-* **Batch Processing:** Integrate async queueing (Celery, RQ) for heavy inference loads
-* **Validation:** Enforce categorical vocabularies matching the preprocessor expectations
+| Purpose                                 | Command                                         |
+|  | -- |
+| List running containers                 | `docker ps`                                     |
+| List all containers (including stopped) | `docker ps -a`                                  |
+| Stop containers                         | `docker compose down`                           |
+| Remove all containers, images, networks | `docker system prune -a`                        |
+| View image list                         | `docker images`                                 |
+| Tail logs live                          | `docker compose logs -f`                        |
+| Build a single image                    | `docker build -t ch3rrypi3/fastapi:inference .` |
+| Push image to Docker Hub                | `docker push ch3rrypi3/fastapi:inference`       |
 
 
 
-## ✅ **Summary**
+## ✅ Summary
 
-This module implements a **robust, production-ready inference layer** using FastAPI:
+This **Inference Stage** completes the MLOps House Price Prediction pipeline by providing:
 
-* Clean architecture with modular components
-* Reproducible predictions aligned with the training pipeline
-* Interactive Swagger documentation via `/docs`
-* Configurable runtime suitable for local, containerised, or cloud inference
+* A **FastAPI** backend for real-time model inference.
+* A **Streamlit** web app for interactive visualisation and prediction.
+* Full **Docker and Compose** orchestration for portability and reproducibility.
+* Optional **Docker Hub** publishing for versioned distribution.
 
-It powers the backend of the **Streamlit house price predictor**, completing the end-to-end inference workflow. 🚀
+With this stage, the project delivers a **fully containerised, end-to-end ML inference system** ready for local or cloud deployment. 🚀
+
