@@ -1,16 +1,22 @@
-# **Model Training Modules**
+# **Model Training Modules — House Price Prediction (Inference Pipeline Stage)**
 
 This folder contains the **model training pipeline** for the **MLOps House Price Prediction** project.
-It extends the engineered dataset from the **feature engineering stage** by fitting a final model, logging results with **MLflow**, and registering the trained model (both locally and in the MLflow Model Registry).
+It extends the engineered dataset from the **feature engineering stage** by fitting and evaluating final models, logging all results to **MLflow**, and registering the trained model (both locally and in the MLflow Model Registry).
 
-The design again follows **single-responsibility principles**:
+Before training, ensure that the **MLflow tracking server** (defined under `deployment/mlflow/`) is up and running — this container is required for experiment tracking and model registration.
+
+
+
+## **Design Overview**
+
+The module follows **single-responsibility principles**, ensuring a clean separation between model construction, orchestration, configuration, and command-line execution:
 
 * `builders.py` → model instantiation logic
-* `processor.py` → orchestration (training, evaluation, persistence, MLflow registry)
-* `config.py` → configuration dataclass + YAML loader
-* `cli.py` → command-line access
+* `processor.py` → training orchestration, evaluation, persistence, and MLflow integration
+* `config.py` → configuration dataclass and YAML loader
+* `cli.py` → command-line access for reproducible training
 
-This ensures a modular, testable, and extensible workflow that can be run directly, via CLI/YAML, or integrated into deployment pipelines.
+This structure provides a **modular, testable, and production-ready workflow** that integrates seamlessly with MLflow.
 
 
 
@@ -18,84 +24,159 @@ This ensures a modular, testable, and extensible workflow that can be run direct
 
 ```
 src/models/
-├── builders.py     # Model factory (map model names → estimators)
-├── processor.py    # Orchestrator for training, MLflow logging, registry
-├── config.py       # TrainingConfig dataclass + YAML loader
-└── cli.py          # Command-line entrypoint
+├── builders.py       # Model factory (maps model names → estimators)
+├── processor.py      # Orchestrator for training, evaluation, MLflow logging
+├── config.py         # TrainingConfig dataclass + YAML loader
+├── cli.py            # Command-line entrypoint
+```
+
+## **MLflow Container Dependency**
+
+To use MLflow tracking and model registry features, the **MLflow container must be running** before you start training.
+
+The **Docker Compose file** for MLflow is located at:
+
+```
+deployment/mlflow/docker-compose.yaml
+```
+
+### 🧩 Example docker-compose.yaml (for reference)
+
+```yaml
+version: "3.9"
+services:
+  mlflow:
+    build: .
+    ports:
+      - "5555:5000"
+    environment:
+      MLFLOW_TRACKING_URI: http://0.0.0.0:5000
+    volumes:
+      - ./mlflow_data:/mlflow
+      - ./mlartifacts:/mlartifacts
 ```
 
 
 
-## **Module Overview (with build order)**
+### ⚙️ Running MLflow via Docker Compose
 
-If building this folder **from scratch**, the natural order would be:
+From the project root:
 
-### 1. `builders.py` – Model Builders
+```bash
+cd deployment/mlflow
+docker compose up -d
+```
 
-* **Purpose**
+You can check that it’s running:
 
-  * `get_model_instance(name, params)`: return an estimator based on string key (`LinearRegression`, `RandomForest`, `GradientBoosting`, `XGBoost`).
-* **Dependencies**: `scikit-learn`, `xgboost`.
-* **Why first**: Core model construction logic used everywhere else.
+```bash
+docker ps
+```
 
+You should see a container exposing port `5555 → 5000`.
 
+Then, open:
 
-### 2. `processor.py` – Orchestrator
+👉 [http://localhost:5555](http://localhost:5555)
 
-* **Purpose**
-
-  * Load training config (`config.yaml`)
-  * Load engineered dataset (`data/processed/engineered_features.csv`)
-  * Train the chosen model (`builders.get_model_instance`)
-  * Evaluate with MAE and R²
-  * Log parameters, metrics, and model with MLflow (including signature & input example)
-  * Register model in the MLflow Model Registry and set alias `@staging`
-  * Save trained model locally (`models/trained/{model_name}.pkl`)
-* **Dependencies**: `pandas`, `numpy`, `scikit-learn`, `xgboost`, `mlflow`, `joblib`, `logging`.
-* **Why second**: Orchestrates the full training and logging pipeline.
+That’s your live **MLflow Tracking UI**.
+Once it’s confirmed running, proceed with model training.
 
 
 
-### 3. `config.py` – Configuration
+## **Module Overview (Build Order)**
 
-* **Purpose**
-
-  * `TrainingConfig` + `ModelSection` dataclasses to represent YAML config
-  * `load_training_config(path)`: load YAML into `TrainingConfig`
-* **Why third**: Centralises hyperparameters and dataset/target variable information.
+If setting up this folder **from scratch**, the natural build and dependency order is as follows:
 
 
 
-### 4. `cli.py` – Command-Line Entrypoint
+### 1️⃣ `builders.py` — Model Builders
 
-* **Purpose**: Wraps `processor.run_training` with `argparse`.
-* **Features**:
+**Purpose**
 
-  * Flags:
+* Provides a `get_model_instance(name, params)` function that returns a configured estimator object.
+* Supports scikit-learn and XGBoost estimators such as `LinearRegression`, `RandomForestRegressor`, `GradientBoostingRegressor`, and `XGBRegressor`.
 
-    * `--config` → path to model_config.yaml
-    * `--data` → path to processed dataset
-    * `--models-dir` → directory for trained model files
-    * `--mlflow-tracking-uri` → MLflow server URI
-* **Why last**: Provides a user-facing execution interface.
+**Dependencies:**
+`scikit-learn`, `xgboost`
+
+**Why first:**
+Defines the reusable model factory used by all other modules.
+
+
+
+### 2️⃣ `processor.py` — Orchestrator
+
+**Purpose**
+
+* Loads the YAML configuration (`TrainingConfig`)
+* Reads engineered dataset (`data/processed/engineered_features.csv`)
+* Trains the selected model via `builders.get_model_instance()`
+* Evaluates using metrics like MAE, R²
+* Logs parameters, metrics, and model artifacts to **MLflow**
+* Registers the model in the MLflow Model Registry (`@staging` alias)
+* Saves the trained model locally under `models/trained/{model_name}.pkl`
+
+**Dependencies:**
+`pandas`, `numpy`, `scikit-learn`, `xgboost`, `mlflow`, `joblib`, `logging`
+
+**Why second:**
+Coordinates the full training, evaluation, and logging pipeline.
+
+
+
+### 3️⃣ `config.py` — Configuration
+
+**Purpose**
+
+* Defines `TrainingConfig` and `ModelSection` dataclasses
+* Provides `load_training_config(path)` to parse YAML files
+* Centralises configuration of hyperparameters, dataset paths, and target variables
+
+**Why third:**
+Ensures a consistent and flexible configuration interface across environments.
+
+
+
+### 4️⃣ `cli.py` — Command-Line Entrypoint
+
+**Purpose**
+
+* Provides a CLI wrapper for the training pipeline
+* Enables reproducible execution with argument flags
+
+**Features**
+
+| Flag                    | Description                           |
+| -- | - |
+| `--config`              | Path to training config YAML          |
+| `--data`                | Path to processed dataset             |
+| `--models-dir`          | Directory to save trained model       |
+| `--mlflow-tracking-uri` | URI of running MLflow tracking server |
+
+**Why last:**
+Provides the user-facing interface to the training workflow.
 
 
 
 ## **Execution**
 
-### 1. Direct Python Execution
+### 🧪 Option 1 — Direct Python Execution
+
+Runs the training process with parameters from the YAML config.
 
 ```bash
 python -m src.models.processor
 ```
 
-Runs with parameters from a YAML config (e.g. `configs/model_config.yaml`).
+Example YAML config path:
+`configs/model_config.yaml`
 
 
 
-### 2. Command-Line Interface
+### ⚙️ Option 2 — Command-Line Interface
 
-Run with explicit flags:
+Run with explicit arguments:
 
 ```bash
 python -m src.models.cli \
@@ -105,7 +186,9 @@ python -m src.models.cli \
   --mlflow-tracking-uri http://localhost:5555
 ```
 
-**Example `model_config.yaml`**
+
+
+**Example `model_config.yaml`:**
 
 ```yaml
 model:
@@ -120,9 +203,9 @@ model:
 
 
 
-### 3. Invoke Task Runner
+### 🧰 Option 3 — Invoke Task Runner
 
-Run training directly:
+Run the full training pipeline:
 
 ```bash
 invoke train
@@ -134,29 +217,62 @@ Run pipeline only (skip tests):
 invoke train-only
 ```
 
-Run with custom flags:
+Run with custom arguments:
 
 ```bash
-invoke train --config=configs/model_config.yaml \
-             --data=data/processed/engineered_features.csv \
-             --models-dir=models \
-             --mlflow-tracking-uri=http://localhost:5555
+invoke train \
+  --config=configs/model_config.yaml \
+  --data=data/processed/engineered_features.csv \
+  --models-dir=models \
+  --mlflow-tracking-uri=http://localhost:5555
 ```
 
 
 
-## ✅ Summary
+## **Verification: Check MLflow Tracking**
 
-This folder implements a **modular model training stage** with:
+After training completes, open your MLflow UI at
+👉 [http://localhost:5555](http://localhost:5555)
 
-* `builders.py` → estimator instantiation
-* `processor.py` → orchestration, evaluation, MLflow logging, registry
-* `config.py` → centralised configuration with a YAML loader
-* `cli.py` → simple CLI with flags + YAML support
+You should see:
 
-The pipeline is **robust, testable, and production-ready**, producing:
+* A new **experiment run** with metrics (MAE, R²)
+* Logged parameters and model artifacts
+* A **registered model version** with alias `@staging`
 
-* A logged MLflow run with metrics, parameters, model artifacts
-* A registered model in the MLflow Model Registry with alias `@staging`
-* A local `.pkl` copy of the trained model in `models/trained/`
 
+
+## ✅ **Summary**
+
+This folder implements a **robust, modular model training stage** that integrates seamlessly with the MLflow container.
+
+| Component                               | Purpose                                          |
+|  |  |
+| `builders.py`                           | Defines supported estimator types                |
+| `processor.py`                          | Orchestrates training, evaluation, and logging   |
+| `config.py`                             | Manages hyperparameter and dataset configuration |
+| `cli.py`                                | Provides CLI for reproducible training           |
+| `deployment/mlflow/docker-compose.yaml` | Runs the MLflow tracking server                  |
+
+### 🚀 Produces:
+
+* Trained model artifact in `models/trained/`
+* Logged run in MLflow UI (`http://localhost:5555`)
+* Registered model version (`@staging`)
+
+> ✅ **Reminder:** Before running training, start the MLflow container:
+>
+> ```bash
+> cd deployment/mlflow
+> docker compose up -d
+> ```
+>
+> Then verify it’s running with:
+>
+> ```bash
+> docker ps
+> ```
+>
+> and proceed to train your model.
+
+This ensures all runs, metrics, and models are correctly tracked and versioned within MLflow — completing the **Model Training → Inference** workflow.

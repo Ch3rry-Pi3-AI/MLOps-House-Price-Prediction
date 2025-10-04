@@ -1,16 +1,43 @@
-# **Test Suite**
+# **Test Suite — Model Training Modules (MLOps House Price Prediction)**
 
-This folder contains the **unit and integration tests** for the **MLOps House Price Prediction** project’s **model training pipeline**.
-It validates the correctness, robustness, and consistency of all core modules under `src/models/`.
+This folder contains the **unit and integration tests** for the **model training pipeline** of the **MLOps House Price Prediction** project.
+It validates the **correctness**, **robustness**, and **end-to-end reliability** of all components under `src/models/`, including MLflow logging, model registration, and CLI orchestration.
 
-The test design follows **layered principles**:
+Before running these tests, ensure that the **MLflow tracking server container** is running — it is required for the integration tests that involve model logging and registry operations.
 
-* **Unit tests** check estimator instantiation (`builders.get_model_instance`) and configuration loading (`config.load_training_config`) in isolation.
-* **Integration tests** validate the full training pipeline (`processor.run_training`) including MLflow logging, model registry, and local persistence.
-* **CLI tests** ensure the command-line entrypoint runs correctly with monkeypatched arguments.
-* **Fixtures** provide reusable synthetic datasets with a `price` target column.
 
-All tests use **pytest** and can be run either **directly** or through **invoke tasks**.
+
+## **MLflow Dependency**
+
+The MLflow tracking server is containerised and configured under:
+
+```
+deployment/mlflow/docker-compose.yaml
+```
+
+You **must start this container first** before running any tests that touch the training pipeline.
+
+### ⚙️ Start the MLflow container
+
+From the project root:
+
+```bash
+cd deployment/mlflow
+docker compose up -d
+```
+
+Verify it’s running:
+
+```bash
+docker ps
+```
+
+You should see a container mapping port `5555 → 5000`.
+Then open:
+
+👉 [http://localhost:5555](http://localhost:5555)
+
+Once the MLflow UI is accessible, you can safely proceed to run the tests.
 
 
 
@@ -20,66 +47,94 @@ All tests use **pytest** and can be run either **directly** or through **invoke 
 tests/
 ├── conftest.py                                 # Shared root fixtures
 ├── models/
-│   ├── conftest.py                             # model-training specific fixture(s)
-│   ├── test_builders_models.py                 # Tests for get_model_instance (estimator factory)
-│   ├── test_config_training.py                 # Tests for config loading (YAML → dataclass)
-│   ├── test_processor_training_integration.py  # End-to-end training with MLflow + registry
+│   ├── conftest.py                             # Model-training specific fixture(s)
+│   ├── test_builders_models.py                 # Unit: get_model_instance (estimator factory)
+│   ├── test_config_training.py                 # Unit: YAML → dataclass loading
+│   ├── test_processor_training_integration.py  # Integration: training + MLflow + registry
 │   └── test_cli_models.py                      # CLI smoke test
 ```
 
 
 
-## **Test Overview (with logical order)**
+## **Test Design (Layered Overview)**
 
-### 1. `conftest.py` – Fixtures
+The test suite follows **layered testing principles**, ensuring each level of abstraction is verified independently.
 
-Provides reusable synthetic DataFrames with numeric features and a `price` target variable.
-Ensures tests have realistic but lightweight datasets.
+### 1️⃣ `conftest.py` — Shared Fixtures
 
-
-
-### 2. `test_builders_models.py` – Model Builders
-
-Validates model instantiation:
-
-* Correct mapping of names (`LinearRegression`, `RandomForest`, `GradientBoosting`, `XGBoost`) to scikit-learn/xgboost estimators.
-* Unsupported names raise a `ValueError`.
+Provides reusable **synthetic datasets** with numeric features and a target column `price`.
+These datasets simulate realistic scenarios while keeping tests fast and lightweight.
 
 
 
-### 3. `test_config_training.py` – Configuration Loader
+### 2️⃣ `test_builders_models.py` — Model Builders
 
-Checks the YAML → dataclass conversion:
+Unit tests for `get_model_instance` in `builders.py`.
 
-* Ensures `TrainingConfig` and `ModelSection` load correctly.
-* Verifies hyperparameters and target variable are preserved.
+**Checks:**
 
-
-
-### 4. `test_processor_training_integration.py` – Pipeline Orchestration
-
-End-to-end test covering:
-
-* Load engineered CSV with target `price`.
-* Train the chosen model via `run_training`.
-* Log parameters, metrics, and model to a **local MLflow tracking URI**.
-* Register the model in the MLflow Model Registry with alias `@staging`.
-* Save the trained model locally (`models/trained/{model}.pkl`).
+* Correct mapping of model names (`LinearRegression`, `RandomForest`, `GradientBoosting`, `XGBoost`)
+* Unsupported names raise a `ValueError`
+* Each estimator instance is initialised with the provided parameters
 
 
 
-### 5. `test_cli_models.py` – CLI Entrypoint
+### 3️⃣ `test_config_training.py` — Configuration Loader
 
-Smoke test for `src.models.cli.main()` with monkeypatched `sys.argv`:
+Unit tests for `config.load_training_config`.
 
-* Confirms the CLI runs end-to-end.
-* Asserts the trained `.pkl` model file is created.
+**Checks:**
+
+* YAML → dataclass conversion works as expected
+* `TrainingConfig` and `ModelSection` fields are populated correctly
+* Hyperparameters and target variable are preserved without mutation
+
+
+
+### 4️⃣ `test_processor_training_integration.py` — Integration Tests
+
+End-to-end testing for the **model training orchestration** (`processor.run_training`).
+
+**Validates:**
+
+* Engineered dataset with target `price` is loaded correctly
+* Selected model trains without errors
+* Metrics (MAE, R²) are computed and logged to MLflow
+* Model and parameters are recorded in MLflow Tracking UI
+* Model version is registered with alias `@staging` in MLflow Model Registry
+* Trained model file is saved locally (`models/trained/{model_name}.pkl`)
+
+> ⚠️ These tests require the **MLflow tracking container** to be running at
+> `http://localhost:5555` (see setup instructions above).
+
+
+
+### 5️⃣ `test_cli_models.py` — CLI Entrypoint Tests
+
+Smoke tests for the command-line interface (`src.models.cli`).
+
+**Validates:**
+
+* CLI runs end-to-end with monkeypatched `sys.argv`
+* Training completes and a `.pkl` model file is created
+* No errors are raised when connecting to the MLflow tracking URI
 
 
 
 ## **Running Tests**
 
-### 🔹 Direct pytest
+> 🧠 **Reminder:** Start the MLflow tracking container first:
+>
+> ```bash
+> cd deployment/mlflow
+> docker compose up -d
+> ```
+>
+> Confirm it’s accessible at [http://localhost:5555](http://localhost:5555).
+
+
+
+### 🔹 Run tests directly with `pytest`
 
 From the project root:
 
@@ -87,19 +142,19 @@ From the project root:
 pytest -q
 ```
 
-Run only model-training tests:
+Run only model training tests:
 
 ```bash
 pytest tests/models -v
 ```
 
-Run a single test:
+Run a specific test:
 
 ```bash
 pytest tests/models/test_builders_models.py::test_get_model_instance_supported
 ```
 
-With coverage:
+Run with coverage:
 
 ```bash
 pytest --cov=src --cov-report=term-missing
@@ -107,43 +162,57 @@ pytest --cov=src --cov-report=term-missing
 
 
 
-### 🔹 Via Invoke Tasks
+### 🔹 Run tests via Invoke Tasks
 
-This project provides **invoke shortcuts** defined in `tasks.py`.
+This project includes **Invoke task shortcuts** defined in `tasks.py`.
 
-* **Run all tests**:
+**Run all tests:**
 
-  ```bash
-  invoke test
-  ```
+```bash
+invoke test
+```
 
-* **Run only model training tests**:
+**Run only model-training tests:**
 
-  ```bash
-  invoke test --path=tests/models
-  ```
+```bash
+invoke test --path=tests/models
+```
 
-* **Run with coverage**:
+**Run with coverage:**
 
-  ```bash
-  invoke cov
-  ```
+```bash
+invoke cov
+```
 
 Other useful tasks:
 
-* **Format code with Black** → `invoke fmt`
-* **Lint with Ruff** → `invoke lint`
-* **Clean caches and artefacts** → `invoke clean`
+| Task                       | Command        |
+| -- | -- |
+| Format code with Black     | `invoke fmt`   |
+| Lint with Ruff             | `invoke lint`  |
+| Clean caches and artefacts | `invoke clean` |
 
 
 
-## ✅ Summary
+## ✅ **Summary**
 
-This test suite ensures the model training pipeline is:
+This test suite ensures that the **model training pipeline** is:
 
-* **Correct** – Estimators are created with the right parameters and config is parsed accurately.
-* **Robust** – Integration tests validate MLflow logging, registry registration, and persistence.
-* **Composable** – Shared fixtures provide consistent synthetic datasets.
-* **Production-ready** – CLI and pipeline orchestration tests confirm the whole training workflow runs smoothly.
+| Category             | Guarantee                                                                 |
+| -- | - |
+| **Correct**          | Estimators and configurations behave as intended                          |
+| **Robust**           | Integration tests confirm MLflow logging, registry, and local persistence |
+| **Composable**       | Shared fixtures ensure consistent reproducibility                         |
+| **Production-Ready** | CLI and orchestration are tested end-to-end                               |
 
-With both **pytest** and **invoke** support, contributors can run tests and quality checks with **short, memorable commands**.
+Before executing tests, always ensure the **MLflow container** is running via:
+
+```bash
+cd deployment/mlflow
+docker compose up -d
+```
+
+Then run your tests safely knowing all logging, metrics, and registry operations will be correctly tracked in
+👉 [http://localhost:5555](http://localhost:5555).
+
+This makes the **testing environment** fully aligned with the production-like **MLOps inference workflow**. 🚀

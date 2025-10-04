@@ -3,7 +3,6 @@
 # -------------------------------------------------------------------
 from __future__ import annotations
 
-import json
 import os
 import socket
 import time
@@ -27,7 +26,7 @@ st.set_page_config(
 # -------------------------------------------------------------------
 DEFAULT_API_URL = os.getenv("API_URL", "http://127.0.0.1:8000")
 APP_VERSION = os.getenv("APP_VERSION", "1.0.0")
-APP_MODEL = os.getenv("APP_MODEL", "XGBoost")  # purely cosmetic label
+APP_MODEL = os.getenv("APP_MODEL", "XGBoost")  # purely cosmetic fallback label
 
 # Keep UI choices aligned with training-time categories if applicable
 LOCATION_OPTIONS_UI = ["Urban", "Suburban", "Rural"]  # title-cased for display
@@ -71,6 +70,147 @@ def hostname_ip() -> Tuple[str, str]:
     return host, ip
 
 
+def pick_model_name(pred: Dict, default_env_model: str) -> str:
+    """
+    Choose the model name to display.
+    Priority: API payload ('model'/'model_name') -> APP_MODEL env -> 'Unknown'.
+    """
+    return str(
+        pred.get("model")
+        or pred.get("model_name")
+        or default_env_model
+        or "Unknown"
+    )
+
+
+def extract_feature_importance(pred: Dict) -> Dict[str, float]:
+    """
+    Robustly extract a name->score mapping for feature importances from the API payload.
+
+    Supported shapes:
+      - {"features_importance": {"sqft": 0.4, "bathrooms": 0.2, ...}}
+      - {"feature_importance": {...}} / {"feature_importances": {...}}
+      - {"top_features": [{"name": "sqft", "importance": 0.4}, ...]}
+      - {"top_factors": [{"feature": "sqft", "score": 0.4}, ...]}
+      - {"features_importance": [["sqft", 0.4], ["bathrooms", 0.2], ...]}
+    """
+    candidates = [
+        "features_importance",
+        "feature_importance",
+        "feature_importances",
+        "top_features",
+        "top_factors",
+    ]
+    data = None
+    for key in candidates:
+        if key in pred:
+            data = pred[key]
+            break
+
+    if not data:
+        return {}
+
+    # If it's already a dict: {name: score}
+    if isinstance(data, dict):
+        out = {}
+        for k, v in data.items():
+            try:
+                out[str(k)] = float(v)
+            except (TypeError, ValueError):
+                continue
+        return out
+
+    # If it's a list of [name, score]
+    if isinstance(data, list) and data and isinstance(data[0], (list, tuple)) and len(data[0]) == 2:
+        out = {}
+        for k, v in data:
+            try:
+                out[str(k)] = float(v)
+            except (TypeError, ValueError):
+                continue
+        return out
+
+    # If it's a list of dicts like {"name": "...", "importance": 0.4} or {"feature": "...", "score": 0.4}
+    if isinstance(data, list) and data and isinstance(data[0], dict):
+        out = {}
+        for item in data:
+            name = item.get("name") or item.get("feature") or item.get("key")
+            val = item.get("importance") or item.get("score") or item.get("value")
+            if name is None or val is None:
+                continue
+            try:
+                out[str(name)] = float(val)
+            except (TypeError, ValueError):
+                continue
+        return out
+
+    return {}
+
+
+# --------- Pretty-printing for feature names (for Top Factors) ---------
+def _title_case_words(s: str) -> str:
+    """Title-case words but keep common lowercase joiners readable."""
+    words = s.split()
+    joiners = {"and", "or", "of", "per", "vs", "for", "to", "in"}
+    if not words:
+        return s
+    out = [words[0].capitalize()]
+    for w in words[1:]:
+        out.append(w if w.lower() in joiners else w.capitalize())
+    return " ".join(out)
+
+
+def pretty_feature_name(raw: str) -> str:
+    """
+    Convert model/transformer feature names into a user-friendly label.
+
+    Handles patterns like:
+      - "num__house_age"              -> "House age"
+      - "num__price_per_sqft"         -> "Price per sqft"
+      - "num__bed_bath_ratio"         -> "Bed/Bath ratio"
+      - "num__sqft"                   -> "Square footage"
+      - "cat__location_Waterfront"    -> "Location: Waterfront"
+      - "cat__location_Urban"         -> "Location: Urban"
+      - "bedrooms" / "bathrooms"      -> "Bedrooms" / "Bathrooms"
+    """
+    s = str(raw)
+
+    # Strip common prefixes from ColumnTransformer pipelines
+    for prefix in ("num__", "cat__", "bin__", "ohe__", "tfidf__", "scale__", "std__", "minmax__"):
+        if s.startswith(prefix):
+            s = s[len(prefix):]
+
+    # If it's a one-hot expansion like 'location_Waterfront'
+    if "__" in s:
+        # Sometimes transformers keep double underscores; replace them
+        s = s.replace("__", "_")
+
+    if "_" in s and s.split("_", 1)[0] in {"location", "loc", "city", "region"}:
+        head, tail = s.split("_", 1)
+        head = head.capitalize()
+        tail = tail.replace("_", " ")
+        return f"{head}: {_title_case_words(tail)}"
+
+    # Known mappings for engineered/base features
+    known = {
+        "sqft": "Square footage",
+        "house_age": "House age",
+        "price_per_sqft": "Price per sqft",
+        "bed_bath_ratio": "Bed/Bath ratio",
+        "year_built": "Year built",
+        "bedrooms": "Bedrooms",
+        "bathrooms": "Bathrooms",
+        "location": "Location",
+        "condition": "Condition",
+    }
+    if s in known:
+        return known[s]
+
+    # Fallback: replace underscores with spaces and title-case
+    s = s.replace("_", " ")
+    return _title_case_words(s)
+
+
 # -------------------------------------------------------------------
 # Header
 # -------------------------------------------------------------------
@@ -112,7 +252,6 @@ with col1:
 
         predict_button = st.button("Predict Price", use_container_width=True)
 
-
 # --------------------- Right Column: Results ------------------------
 with col2:
     st.markdown("### Prediction Results")
@@ -139,12 +278,20 @@ with col2:
             except requests.exceptions.RequestException as e:
                 st.error(f"Error connecting to API: {e}")
                 st.warning("Using mock data for demonstration purposes. Please check your API connection.")
-                # Mock fallback (demo only)
+                # Mock fallback (demo only) — include keys to exercise UI paths
                 st.session_state.prediction = {
                     "predicted_price": 467145,
                     "confidence_interval": [420430.5, 513859.5],
-                    "features_importance": {"sqft": 0.43, "location": 0.27, "bathrooms": 0.15},
+                    "features_importance": {
+                        "num__house_age": 0.53,
+                        "num__sqft": 0.28,
+                        "num__price_per_sqft": 0.17,
+                        "cat__location_Waterfront": 0.01,
+                        "num__bed_bath_ratio": 0.00,
+                    },
                     "prediction_time": "mock",
+                    "prediction_duration": 0.18,
+                    "model": "XGBoost (mock)",
                 }
                 st.session_state.prediction_elapsed = time.perf_counter() - start
 
@@ -178,18 +325,45 @@ with col2:
                     st.write("—")
 
             with b:
-                st.markdown("##### Inference Details")
-                st.metric(label="Latency (s)", value=f"{elapsed_s:.2f}")
-                st.caption(f"Model: **{APP_MODEL}**")
+                st.markdown("##### Prediction Details")
+                # Prefer API-provided prediction_duration (seconds); fallback to API's prediction_time if numeric; else measured elapsed
+                api_duration = pred.get("prediction_duration")
+                api_time_val = pred.get("prediction_time")
+                pred_time_s = None
+                # Try duration first
+                try:
+                    if api_duration is not None:
+                        pred_time_s = float(api_duration)
+                except (TypeError, ValueError):
+                    pred_time_s = None
+                # If duration not available, accept numeric/string numeric prediction_time
+                if pred_time_s is None:
+                    try:
+                        if api_time_val is not None and isinstance(api_time_val, (int, float, str)):
+                            pred_time_s = float(api_time_val)  # only works if API gave seconds as number/string
+                    except (TypeError, ValueError):
+                        pred_time_s = None
+                # Final fallback to measured elapsed
+                if pred_time_s is None:
+                    pred_time_s = elapsed_s
 
-            # Top factors (if available)
-            fi: Dict[str, float] = pred.get("features_importance", {}) or {}
+                st.metric(label="Prediction time (s)", value=f"{pred_time_s:.2f}")
+
+                # Prefer API model name, fallback to APP_MODEL env
+                model_label = pick_model_name(pred, APP_MODEL)
+                st.caption(f"Model: **{model_label}**")
+
+            # Top factors (Top 3, numbered, pretty names)
             st.markdown("#### Top Factors")
+            fi: Dict[str, float] = extract_feature_importance(pred)
             if fi:
-                # sort by importance desc and show top 5
-                items = sorted(fi.items(), key=lambda kv: kv[1], reverse=True)[:5]
-                for name, score in items:
-                    st.write(f"- **{name}** — {score:.2f}")
+                items = sorted(fi.items(), key=lambda kv: kv[1], reverse=True)[:3]
+                # Create a numbered list with bold labels and aligned scores
+                lines = []
+                for idx, (name, score) in enumerate(items, start=1):
+                    pretty = pretty_feature_name(name)
+                    lines.append(f"{idx}. **{pretty}** — {score:.2f}")
+                st.markdown("\n".join([f"- {ln}" for ln in lines]))
             else:
                 st.write("No feature importance provided by the backend.")
 

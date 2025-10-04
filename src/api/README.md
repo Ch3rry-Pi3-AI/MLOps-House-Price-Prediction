@@ -1,28 +1,40 @@
-# **API Module — House Price Prediction**
+# **API Module — House Price Prediction (Inference Stage)**
 
-This folder contains the **FastAPI service** that serves real-time and batch predictions for the **MLOps House Price Prediction** project.
-It loads the trained estimator and preprocessor, validates inputs with Pydantic, performs inference, and returns structured JSON responses (including a simple ±10% confidence band).
+This folder contains the **FastAPI inference service** responsible for serving both **real-time** and **batch predictions** in the **MLOps House Price Prediction** project.
+It loads the trained estimator and preprocessor, validates incoming data via **Pydantic**, performs **inference**, and returns structured JSON responses — including a simple ±10% confidence band.
 
-The design follows **single-responsibility principles**:
+This module forms the backend of the inference system that the **Streamlit frontend** connects to.
 
-* `schemas.py` → request/response Pydantic models
-* `inference.py` → model/preprocessor loading + single/batch prediction logic
-* `main.py` → FastAPI app, routing, CORS, and OpenAPI docs
-* `requirements.txt` → lightweight runtime dependencies for the API layer
 
-This keeps the API **modular, testable, and deployable**; it can run locally (Uvicorn), in containers, or be wired into CI/CD.
+
+## **Design Overview**
+
+The API follows clear **single-responsibility principles** for maintainability and modularity:
+
+* `schemas.py` → Pydantic request/response models
+* `inference.py` → loads model/preprocessor and performs single/batch inference
+* `main.py` → FastAPI entrypoint, routing, and OpenAPI documentation
+* `requirements.txt` → lightweight runtime dependencies for the inference layer
+* `Dockerfile` → container definition for the FastAPI service
+
+Together, these components create a **reproducible, containerised inference service** that can be run locally, inside Docker, or as part of a CI/CD deployment.
+
+
 
 ## **Module Structure**
 
 ```
 src/api/
-├── schemas.py         # Pydantic models (request & response)
-├── inference.py       # Loads model/preprocessor and performs inference
-├── main.py            # FastAPI app with /health, /predict, /batch-predict
-└── requirements.txt   # API runtime dependencies
+├── schemas.py          # Pydantic models (request & response)
+├── inference.py        # Loads model/preprocessor and performs inference
+├── main.py             # FastAPI app with /health, /predict, /batch-predict
+├── requirements.txt    # API runtime dependencies
+├── Dockerfile          # Container definition for the FastAPI inference service
+└── img/
+    └── fastapi_backend.png   # Screenshot of /docs Swagger UI
 ```
 
-**Model artefacts expected:**
+**Expected Model Artefacts:**
 
 ```
 models/trained/
@@ -30,109 +42,179 @@ models/trained/
 └── preprocessor.pkl
 ```
 
+
+
 ## **Endpoints**
 
-### 1) `GET /health`
+### 1️⃣ `GET /health`
 
-Quick liveness check.
+Simple liveness check to verify that the API and model are running.
 
-* **Response**
+**Response:**
 
-  ```json
-  { "status": "healthy", "model_loaded": true }
-  ```
+```json
+{ "status": "healthy", "model_loaded": true }
+```
 
-### 2) `POST /predict`
 
-Single prediction.
 
-* **Request** (`HousePredictionRequest`)
+### 2️⃣ `POST /predict`
 
-  ```json
-  {
-    "sqft": 1800.0,
-    "bedrooms": 3,
-    "bathrooms": 2.0,
-    "location": "suburban",
-    "year_built": 2005,
-    "condition": "Good"
-  }
-  ```
+Make a single prediction.
 
-* **Response** (`PredictionResponse`)
+**Request (`HousePredictionRequest`):**
 
-  ```json
-  {
-    "predicted_price": 352000.75,
-    "confidence_interval": [316800.68, 387200.83],
-    "features_importance": {},
-    "prediction_time": "2025-10-03T18:30:12.345678"
-  }
-  ```
+```json
+{
+  "sqft": 1800.0,
+  "bedrooms": 3,
+  "bathrooms": 2.0,
+  "location": "suburban",
+  "year_built": 2005,
+  "condition": "Good"
+}
+```
 
-### 3) `POST /batch-predict`
+**Response (`PredictionResponse`):**
 
-Multiple predictions in one call.
+```json
+{
+  "predicted_price": 352000.75,
+  "confidence_interval": [316800.68, 387200.83],
+  "features_importance": {"sqft": 0.42, "bedrooms": 0.25, "bathrooms": 0.18},
+  "prediction_time": "2025-10-03T18:30:12.345678"
+}
+```
 
-* **Request** (`List[HousePredictionRequest]`)
 
-  ```json
-  [
-    { "sqft": 1200, "bedrooms": 2, "bathrooms": 1.0, "location": "urban", "year_built": 1998, "condition": "Fair" },
-    { "sqft": 2400, "bedrooms": 4, "bathrooms": 3.0, "location": "rural", "year_built": 2012, "condition": "Excellent" }
-  ]
-  ```
-* **Response** (`List[float]`)
 
-  ```json
-  [245000.0, 421300.5]
-  ```
+### 3️⃣ `POST /batch-predict`
 
-## **Request/Response Schemas (summary)**
+Generate predictions for multiple properties in one request.
 
-### `HousePredictionRequest`
+**Request (`List[HousePredictionRequest]`):**
 
-* `sqft: float (>0)`
-* `bedrooms: int (>=1)`
-* `bathrooms: float (>0)`
-* `location: str` (e.g., `"urban" | "suburban" | "rural"`)
-* `year_built: int (1800–2023)`
-* `condition: str` (e.g., `"Good" | "Excellent" | "Fair"`)
+```json
+[
+  { "sqft": 1200, "bedrooms": 2, "bathrooms": 1.0, "location": "urban", "year_built": 1998, "condition": "Fair" },
+  { "sqft": 2400, "bedrooms": 4, "bathrooms": 3.0, "location": "rural", "year_built": 2012, "condition": "Excellent" }
+]
+```
 
-### `PredictionResponse`
+**Response (`List[float]`):**
 
-* `predicted_price: float`
-* `confidence_interval: List[float]` (two elements: `[lower, upper]`)
-* `features_importance: Dict[str, float]` (empty by default)
-* `prediction_time: str` (ISO-8601, UTC)
+```json
+[245000.0, 421300.5]
+```
 
-## **Running the API**
 
-> Assumes you have the trained artefacts at `models/trained/house_price_model.pkl` and `models/trained/preprocessor.pkl`.
 
-### Option A — Run with `uv`
+## **Swagger /docs Interface**
+
+The FastAPI app provides an interactive documentation and testing interface at
+👉 [`http://127.0.0.1:8000/docs`](http://127.0.0.1:8000/docs).
+
+<p align="center">
+  <img src="img/fastapi_backend.png" alt="FastAPI Swagger UI" width="800"/>
+</p>
+
+
+
+## **Request / Response Schemas (Summary)**
+
+### 🧾 `HousePredictionRequest`
+
+| Field        | Type            | Description                             |
+|  |  |  |
+| `sqft`       | float (>0)      | Property area in square feet            |
+| `bedrooms`   | int (>=1)       | Number of bedrooms                      |
+| `bathrooms`  | float (>0)      | Number of bathrooms                     |
+| `location`   | str             | e.g. `"urban"`, `"suburban"`, `"rural"` |
+| `year_built` | int (1800–2023) | Year of construction                    |
+| `condition`  | str             | e.g. `"Good"`, `"Fair"`, `"Excellent"`  |
+
+### 📦 `PredictionResponse`
+
+| Field                 | Type             | Description                   |
+|  | - | -- |
+| `predicted_price`     | float            | Model-predicted house price   |
+| `confidence_interval` | List[float]      | [lower, upper] bounds of ±10% |
+| `features_importance` | Dict[str, float] | Top features (optional)       |
+| `prediction_time`     | str              | ISO-8601 timestamp (UTC)      |
+
+
+
+## **Running the Inference API**
+
+> Ensure your trained artefacts are available under `models/trained/`.
+
+### 🧪 Option A — Run locally with `uv`
 
 ```bash
-# From project root
 uv pip install -r src/api/requirements.txt
 uv run uvicorn src.api.main:app --reload
 ```
 
 Then open:
 
-* [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) → **interactive Swagger UI**
-* [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health) → **liveness check**
+* [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) → interactive Swagger UI
+* [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health) → liveness check
 
-### Option B — Run with plain `pip`
+
+
+### 🧰 Option B — Run locally with plain `pip`
 
 ```bash
 pip install -r src/api/requirements.txt
 uvicorn src.api.main:app --reload
 ```
 
+
+
+## **Running via Docker**
+
+This module includes a **Dockerfile** that defines the FastAPI inference container.
+
+### 🏗️ Build the image
+
+From the project root:
+
+```bash
+docker build -t house-price-fastapi -f src/api/Dockerfile src/api
+```
+
+### 🚀 Run the container
+
+```bash
+docker run -d -p 8000:8000 --name house-price-backend house-price-fastapi
+```
+
+### 🔍 Find the correct local port (if using dynamic mapping)
+
+If you used random mapping (`-p 0:8000`) or `docker compose`, check the actual bound port:
+
+```bash
+docker ps
+```
+
+Example output:
+
+```
+CONTAINER ID   IMAGE                 PORTS
+7c2a0b5c8d91   house-price-fastapi   0.0.0.0:32772->8000/tcp
+```
+
+Then open your browser at:
+
+👉 **[http://localhost:32772/docs](http://localhost:32772/docs)**
+
+That’s your live FastAPI inference backend interface.
+
+
+
 ## **Quick Usage**
 
-### cURL
+### 💻 cURL
 
 ```bash
 curl -X POST http://127.0.0.1:8000/predict \
@@ -140,13 +222,13 @@ curl -X POST http://127.0.0.1:8000/predict \
   -d '{"sqft":1800,"bedrooms":3,"bathrooms":2.0,"location":"suburban","year_built":2005,"condition":"Good"}'
 ```
 
-### HTTPie
+### ⚙️ HTTPie
 
 ```bash
 http POST :8000/predict sqft:=1800 bedrooms:=3 bathrooms:=2.0 location=suburban year_built:=2005 condition=Good
 ```
 
-### Python client
+### 🐍 Python client
 
 ```python
 import requests
@@ -157,23 +239,30 @@ payload = {
     "bathrooms": 2.0,
     "location": "suburban",
     "year_built": 2005,
-    "condition": "Good",
+    "condition": "Good"
 }
-r = requests.post("http://127.0.0.1:8000/predict", json=payload, timeout=10)
+r = requests.post("http://127.0.0.1:8000/predict", json=payload)
 print(r.json())
 ```
 
-## **Configuration & Paths**
 
-* **Model paths** are defined in `src/api/inference.py`:
 
-  * `MODEL_PATH = "models/trained/house_price_model.pkl"`
-  * `PREPROCESSOR_PATH = "models/trained/preprocessor.pkl"`
-* If your deployment uses different locations (e.g., environment variables, mounted volumes), update these constants or read from env vars (recommended in production).
+## **Configuration & Environment**
+
+Model paths are defined in `src/api/inference.py`:
+
+```python
+MODEL_PATH = "models/trained/house_price_model.pkl"
+PREPROCESSOR_PATH = "models/trained/preprocessor.pkl"
+```
+
+If running in Docker or cloud environments, use environment variables or mounted volumes to point to artefact paths dynamically.
+
+
 
 ## **CORS**
 
-`main.py` enables permissive CORS:
+CORS is enabled in `main.py` for local development:
 
 ```python
 app.add_middleware(
@@ -183,22 +272,28 @@ app.add_middleware(
 )
 ```
 
-Tighten this for production by whitelisting origins (e.g., `["https://yourapp.example"]`).
+For production, restrict this to known domains (e.g., `["https://yourdomain.com"]`).
 
-## **Extending the API**
 
-* **Confidence intervals**: Replace the ±10% band with model-based intervals (e.g., quantile regression, prediction intervals, conformal prediction).
-* **Explainability**: Populate `features_importance` via tree importances or SHAP (add a flag to avoid heavy startup costs).
-* **Batching & throughput**: Consider asynchronous queues (e.g., Celery/RQ) for large batches.
-* **Validation**: Constrain categorical values for `location` and `condition` if the preprocessor expects a fixed vocabulary.
 
-## ✅ Summary
+## **Extending the Inference Service**
 
-This API module provides a **clean, production-ready** FastAPI layer for serving house-price predictions:
+* **Confidence Intervals:** Replace fixed ±10% with model-based intervals (quantile regression, conformal prediction, etc.)
+* **Explainability:** Add SHAP or feature importances dynamically
+* **Batch Processing:** Introduce async queues (Celery/RQ) for high throughput
+* **Validation:** Constrain categorical vocabularies for robustness
 
-* Clear **schemas** and **separation of concerns**
-* **Derived features** computed consistently with training
-* Easy local run with `uv`/Uvicorn and interactive docs
-* Sensible extension points for **explainability** and **intervals**
 
-Plug it into your deployment pipeline and point it at your trained artefacts to go from **model** → **service** swiftly.
+
+## ✅ **Summary**
+
+This API module implements a **clean, production-ready inference backend**:
+
+* Modular components with clear separation of concerns
+* Consistent preprocessing and prediction logic with training
+* Interactive **Swagger UI** for local testing
+* **Dockerised** for reproducible, portable inference anywhere
+
+Once the container is running, use `docker ps` to find your mapped local port and access
+👉 **`http://localhost:<YOUR_PORT>/docs`**
+to explore the live API and test real-time house price predictions. 🚀

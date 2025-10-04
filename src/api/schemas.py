@@ -3,7 +3,7 @@
 # -------------------------------------------------------------------
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from pydantic import BaseModel, Field
 
@@ -66,13 +66,17 @@ class PredictionResponse(BaseModel):
         Mapping from feature name to importance score (normalisation is model-specific).
     prediction_time : str
         ISO-8601 timestamp (UTC) when the prediction was generated.
+    prediction_duration : float
+        Wall-clock inference time in **seconds** for serving this prediction.
+    model : str
+        A short label for the model used to generate the prediction (e.g., ``"XGBRegressor"``).
 
     Notes
     -----
     - ``features_importance`` may be empty when the underlying model does not
       expose importances (e.g., plain linear regression without post-hoc methods).
-    - ``prediction_time`` is a string for portability across clients; if you prefer
-      native datetime handling, convert to/from ISO-8601 at the edges.
+    - ``prediction_time`` is a string for portability; ``prediction_duration`` is numeric
+      to support UI metrics (seconds).
     """
 
     predicted_price: float = Field(..., description="Point estimate of the predicted price.")
@@ -87,3 +91,5 @@ class PredictionResponse(BaseModel):
         description="Feature importance mapping (name -> score).",
     )
     prediction_time: str = Field(..., description="ISO-8601 UTC timestamp of prediction.")
+    prediction_duration: float = Field(..., ge=0.0, description="Wall-clock inference time in seconds.")
+    model: str = Field(..., description="Model label used for this prediction.")

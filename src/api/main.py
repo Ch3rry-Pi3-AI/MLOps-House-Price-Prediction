@@ -8,7 +8,7 @@ from typing import List
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .inference import predict_price, batch_predict
+from .inference import batch_predict, get_model_label, predict_price
 from .schemas import HousePredictionRequest, PredictionResponse
 
 
@@ -55,10 +55,13 @@ async def health_check() -> dict:
     Returns
     -------
     dict
-        JSON object with service health status and whether the model
-        was successfully loaded.
+        JSON object with service health status and model metadata.
     """
-    return {"status": "healthy", "model_loaded": True}
+    return {
+        "status": "healthy",
+        "model_loaded": True,
+        "model_name": get_model_label(),
+    }
 
 
 @app.post("/predict", response_model=PredictionResponse)
@@ -75,7 +78,7 @@ async def predict(request: HousePredictionRequest) -> PredictionResponse:
     -------
     PredictionResponse
         Structured prediction output containing predicted price,
-        confidence interval, feature importances, and timestamp.
+        confidence interval, feature importances, timestamp, duration, and model label.
     """
     return predict_price(request)
 
