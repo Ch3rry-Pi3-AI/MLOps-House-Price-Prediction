@@ -42,6 +42,7 @@ jobs:
           if [ -f requirements.txt ]; then
             uv pip install -r requirements.txt
           fi
+          # Ensure pytest present even if not listed
           uv pip install pytest
 
       - name: Run tests
@@ -50,9 +51,11 @@ jobs:
           pytest -q
 
   data-processing:
-    name: Data processing & features
+    name: Data processing & features (invoke)
     needs: tests
     runs-on: ubuntu-latest
+    # Only run if the raw CSV exists in the repo (avoids failures on branches without data fixtures)
+    if: ${{ hashFiles('data/raw/house_data.csv') != '' }}
 
     steps:
       - name: Checkout
@@ -76,36 +79,56 @@ jobs:
           restore-keys: |
             uv-${{ runner.os }}-3.13-
 
-      - name: Create venv with uv & install deps
+      - name: Create venv with uv & install deps (incl. invoke)
         run: |
           uv venv --python python3.13
           source .venv/bin/activate
           if [ -f requirements.txt ]; then
             uv pip install -r requirements.txt
           fi
+          # Ensure invoke is available even if not in requirements
+          uv pip install invoke
 
-      - name: Process data
+      - name: Show repo tree (debug)
+        run: |
+          pwd
+          ls -la
+          echo "--- src candidates ---"
+          find src -maxdepth 3 -type f -name "*.py" -print || true
+
+      - name: Ensure directories
         run: |
           source .venv/bin/activate
-          python src/data/run_processing.py \
+          inv ensure-dirs
+
+      - name: Preprocess (invoke)
+        run: |
+          source .venv/bin/activate
+          inv preprocess \
             --input data/raw/house_data.csv \
-            --output data/processed/cleaned_house_data.csv
+            --output data/processed/cleaned_house_data.csv \
+            --policy filter \
+            --target price \
+            --iqr 1.5 \
+            --index false
 
-      - name: Engineer features
+      - name: Engineer features (invoke)
         run: |
           source .venv/bin/activate
-          python src/features/engineer.py \
+          inv engineer \
             --input data/processed/cleaned_house_data.csv \
-            --output data/processed/featured_house_data.csv \
+            --output data/processed/engineered_features.csv \
             --preprocessor models/trained/preprocessor.pkl
 
-      - name: Upload processed data
+      - name: Upload engineered data
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: processed-data
-          path: data/processed/featured_house_data.csv
+          name: engineered-features
+          path: data/processed/engineered_features.csv
 
       - name: Upload preprocessor
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: preprocessor
