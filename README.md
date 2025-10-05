@@ -1,205 +1,214 @@
-# **Model Inference Stage**
+Perfect — since this branch represents your **CI/CD automation stage**, we’ll make the new `README.md` reflect that progression in your project lifecycle.
 
-This branch extends the **MLOps House Price Prediction** project by implementing the **model inference pipeline**.
-It introduces a production-ready inference stack composed of:
+This version maintains the same visual and structural style as your earlier READMEs (e.g., Streamlit one), reuses your four `.png` files for illustration, but adapts the narrative for **Continuous Integration and DockerHub publishing**.
 
-* **FastAPI** – serves predictions from the trained model.
-* **Streamlit** – provides an intuitive web interface for real-time user interaction.
-* **Docker & Docker Compose** – containerise and orchestrate both services for seamless execution.
+Here’s the full, polished replacement:
 
-This stage operationalises the trained model and preprocessor into a **live, queryable inference service** with an accompanying UI for end-users.
+---
 
+# **Continuous Integration (CI) — Automation Stage**
 
+This branch extends the **MLOps House Price Prediction** project by introducing a fully automated **Continuous Integration (CI)** pipeline using **GitHub Actions**.
+The pipeline tests, processes, trains, and publishes your model as a **Docker image** directly to **DockerHub** — ensuring every change to your repository is automatically validated and built in a reproducible way.
 
-## **Project Structure**
+This stage connects your entire project into a cohesive, version-controlled MLOps workflow that integrates **testing**, **model retraining**, and **container publishing**.
+
+## **Module Structure**
 
 ```
 mlops-house-price-prediction/
-├── .venv/
 ├── .github/
-├── data/
-├── models/
-├── notebooks/
-├── src/
-│   ├── api/                                # 🧠 FastAPI inference service
-│   │   ├── inference.py                    #   Loads model + preprocessor, defines predict()
-│   │   ├── main.py                         #   FastAPI entrypoint and routing
-│   │   ├── schemas.py                      #   Pydantic request/response models
-│   │   └── requirements.txt                #   FastAPI + Uvicorn dependencies
-│   ├── data/
-├── streamlit_app/                          # 🎨 Streamlit user interface
-│   ├── app.py                              #   Web UI calling the FastAPI backend
-│   ├── requirements.txt                    #   Streamlit + Requests dependencies
-│   └── Dockerfile                          #   Streamlit container definition
-├── img/                                    # 🖼️ Media assets (GIFs, screenshots, etc.)
-│   └── streamlit_app.gif                   #   Demonstration of the inference app
-├── Dockerfile                              # FastAPI container definition
-├── docker-compose.yaml                     # Multi-service orchestration (FastAPI + Streamlit)
-├── tasks.py
-├── README.md
-└── uv.lock
+│   ├── workflows/
+│   │   └── ci.yml                 # UPDATED! - CI pipeline definition (test → process → train → publish)
+│   └── img/                       # Supporting setup visuals
+│       ├── dockerhub_username.png
+│       ├── dockerhub_token.png
+│       ├── github_secrets.png
+│       └── github_new_secret.png
+├── src/                           # Source modules for data, features, and models
+├── streamlit_app/                 # Streamlit UI for user inference
+├── Dockerfile                     # FastAPI inference container
+├── docker-compose.yaml            # Combined inference orchestration
+└── README.md
 ```
 
-> Note: Any `.venv/` directory remains ignored and should not be committed.
+## **Pipeline Overview**
 
+The **CI workflow** (`ci.yml`) is triggered automatically on every **push** or **pull request**. It executes the following jobs in sequence:
 
+| Stage                             | Description                                                                                            |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| 🧪 **Tests**                      | Runs all unit tests using `pytest` inside a `uv` virtual environment.                                  |
+| 🧹 **Data Processing & Features** | Loads raw CSV data, cleans it, and engineers new features using `invoke`.                              |
+| 🧠 **Model Training**             | Trains the ML model and logs it to a temporary **MLflow server** running inside Docker.                |
+| 🏗️ **Build & Publish**           | Builds the final **Docker image** and pushes it to your **DockerHub** repository on the `main` branch. |
 
-## **Inference Overview**
+This ensures every branch is validated before merging, and the main branch always holds a **ready-to-deploy** model image.
 
-### 🧠 `src/api/` — FastAPI Inference Service
+---
 
-* Loads the trained model (`house_price_model.pkl`) and preprocessor.
-* Exposes two endpoints:
+## **1️⃣ Setting Up DockerHub Credentials**
 
-  * **`/health`** — health check to confirm the API is live.
-  * **`/predict`** — accepts JSON input conforming to `HousePredictionRequest` and returns the predicted house price.
-* Runs via **Uvicorn** on port `8000` inside its container.
+To allow GitHub Actions to publish your Docker image, you’ll need your **DockerHub username** and a **personal access token**.
 
+### 🪪 Step 1 — Get Your Username
 
-
-### 🎨 `streamlit_app/` — Streamlit Frontend
-
-* Provides an interactive web interface for inputting house attributes.
-* Sends requests to the FastAPI backend using the `API_URL` environment variable (e.g., `http://fastapi:8000`).
-* Displays:
-
-  * Predicted price
-  * Model used
-  * Top three most influential factors
-  * Prediction latency (in milliseconds)
-* Runs via **Streamlit** on port `8501` inside its container.
+1. Log in to [DockerHub](https://hub.docker.com/).
+2. Click your **profile icon** (top right).
+3. Your username is displayed directly under your profile picture.
 
 <p align="center">
-  <img src="img/streamlit_app.gif" alt="Streamlit App Demo" width="800"/>
+  <img src=".github/img/dockerhub_username.png" alt="DockerHub username example" width="600"/>
 </p>
 
+For example, here the username is **`ch3rrypi3`**.
 
+---
 
-## **Containerisation & Orchestration**
+### 🔐 Step 2 — Generate a Personal Access Token
 
-### 🧩 Dockerfiles
+1. Click your **profile icon** again.
+2. Go to **Account settings → Personal access tokens.**
+3. Click **Generate new token.**
 
-* **Root `Dockerfile`** → builds the FastAPI inference service.
-* **`streamlit_app/Dockerfile`** → builds the Streamlit interface.
+<p align="center">
+  <img src=".github/img/dockerhub_token.png" alt="DockerHub token generation screen" width="700"/>
+</p>
 
-### ⚙️ `docker-compose.yaml`
+> ⚠️ **Important:** Copy the token immediately — you will not be able to view it again later.
+> You’ll use this as the **Secret value** in GitHub in the next step.
 
-Defines and links both services:
+---
 
-```yaml
-services:
-  fastapi:
-    build: .
-    ports: ["8000:8000"]
+## **2️⃣ Configuring GitHub Secrets and Variables**
 
-  streamlit:
-    build: ./streamlit_app
-    ports: ["8501:8501"]
-    environment:
-      API_URL: http://fastapi:8000
-    depends_on:
-      - fastapi
-```
+Now we’ll connect DockerHub with GitHub Actions so the pipeline can push images automatically.
 
-Docker Compose automatically networks the two containers, so the Streamlit frontend communicates with the FastAPI backend via the hostname `fastapi`.
+### ⚙️ Step 1 — Open Your Repository Settings
 
+1. In your GitHub repository, click the **Settings** tab.
+2. Under **Security**, expand **Secrets and variables → Actions.**
 
+<p align="center">
+  <img src=".github/img/github_secrets.png" alt="GitHub Secrets overview" width="700"/>
+</p>
 
-## **Building and Running the Inference Stack**
+---
 
-### 🏗️ Build both images
+### 🔑 Step 2 — Add a Repository Secret
 
-```bash
-docker compose build
-```
+1. Under the **Secrets** tab, click **New repository secret.**
+2. For **Name**, enter:
 
-### 🚀 Launch the stack
+   ```
+   DOCKERHUB_TOKEN
+   ```
+3. In **Secret**, paste your DockerHub access token.
+4. Click **Add secret.**
 
-```bash
-docker compose up
-# or detached mode:
-docker compose up -d
-```
+<p align="center">
+  <img src=".github/img/github_new_secret.png" alt="New GitHub secret creation" width="700"/>
+</p>
 
-### 🌐 Access the services
+---
 
-| Service       | URL                                                      |
-| - | -- |
-| **FastAPI**   | [http://localhost:8000/docs](http://localhost:8000/docs) |
-| **Streamlit** | [http://localhost:8501](http://localhost:8501)           |
+### 🧩 Step 3 — Add a Repository Variable
 
+1. Switch to the **Variables** tab.
+2. Click **New repository variable.**
+3. For **Name**, enter:
 
+   ```
+   DOCKERHUB_USERNAME
+   ```
+4. For **Value**, enter your DockerHub username (e.g., `ch3rrypi3`).
+5. Click **Add variable.**
 
-## **Testing the FastAPI Endpoint**
+> The pipeline will now use these to authenticate when publishing your model image.
 
-### ✅ Health Check
+---
 
-```bash
-curl http://localhost:8000/health
-```
+## **3️⃣ Running the CI Workflow**
 
-### 🧠 Example Prediction Request
+Once your credentials are configured, you can trigger the pipeline automatically.
 
-```bash
-curl -X POST "http://localhost:8000/predict" \
-     -H "Content-Type: application/json" \
-     -d '{"sqft":2000,"bedrooms":3,"bathrooms":2,"year_built":2010,"condition":"Good"}'
-```
+### 🧪 Option A — Test on a feature branch (no Docker push)
 
-Expected response:
-
-```json
-{"predicted_price": 354820.45, "currency": "USD"}
-```
-
-
-
-## **Publishing to Docker Hub**
-
-### 1️⃣ Log in
+Push to a non-main branch to test your workflow up to model training:
 
 ```bash
-docker login
-# username: ch3rrypi3
+git add .
+git commit -m "Run CI pipeline test"
+git push origin feature/ci-update
 ```
 
-### 2️⃣ Push the images
+This will run:
+
+* ✅ `tests`
+* 🧹 `data-processing`
+* 🧠 `model-training`
+
+…but **skip** the Docker publish step.
+
+---
+
+### 🚀 Option B — Publish via the `main` branch
+
+When you **merge** into `main`, or push directly to it from VS Code:
 
 ```bash
-docker push ch3rrypi3/fastapi:inference
-docker push ch3rrypi3/streamlit:inference
+git push origin main
 ```
 
-### 3️⃣ Verify upload
+This will run **all** stages, including:
 
-Check your repositories at
+* Building the final Docker image
+* Logging in to DockerHub
+* Pushing the image:
+
+  ```
+  docker.io/<your_username>/house-price-model:latest
+  ```
+
+You’ll then see it appear in your DockerHub repository.
+
+---
+
+## **4️⃣ Verifying Your Docker Image**
+
+After the pipeline completes successfully, go to:
+
 👉 [https://hub.docker.com/repositories/ch3rrypi3](https://hub.docker.com/repositories/ch3rrypi3)
 
+Your latest image should be visible under **Repositories** as:
 
+```
+house-price-model:latest
+```
 
-## **Useful Docker Commands**
+You can also verify locally:
 
-| Purpose                                 | Command                                         |
-|  | -- |
-| List running containers                 | `docker ps`                                     |
-| List all containers (including stopped) | `docker ps -a`                                  |
-| Stop containers                         | `docker compose down`                           |
-| Remove all containers, images, networks | `docker system prune -a`                        |
-| View image list                         | `docker images`                                 |
-| Tail logs live                          | `docker compose logs -f`                        |
-| Build a single image                    | `docker build -t ch3rrypi3/fastapi:inference .` |
-| Push image to Docker Hub                | `docker push ch3rrypi3/fastapi:inference`       |
+```bash
+docker pull ch3rrypi3/house-price-model:latest
+docker images | grep house-price-model
+```
 
+---
 
+## **✅ Summary**
 
-## ✅ Summary
+This **CI Stage** introduces full automation for your **MLOps House Price Prediction** project.
 
-This **Inference Stage** completes the MLOps House Price Prediction pipeline by providing:
+**Key outcomes:**
 
-* A **FastAPI** backend for real-time model inference.
-* A **Streamlit** web app for interactive visualisation and prediction.
-* Full **Docker and Compose** orchestration for portability and reproducibility.
-* Optional **Docker Hub** publishing for versioned distribution.
+* Seamless **Continuous Integration** workflow using **GitHub Actions**
+* End-to-end pipeline: **test → process → train → publish**
+* Secure **DockerHub authentication** via repository secrets and variables
+* Reproducible **Docker image publishing** with every merge to main
+* Visual setup guide (DockerHub + GitHub Secrets)
 
-With this stage, the project delivers a **fully containerised, end-to-end ML inference system** ready for local or cloud deployment. 🚀
+Once configured, every push or merge will trigger your workflow automatically — ensuring reproducible, **continuous integration** of your **House Price Prediction** model. 🚀
 
+---
+
+Would you like me to include a small table summarising the four images at the top (like a visual reference index) — e.g., “Image | Description | Used In Section”? It can make the README even more polished.
