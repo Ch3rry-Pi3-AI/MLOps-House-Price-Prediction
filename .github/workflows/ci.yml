@@ -1,21 +1,42 @@
-name: CI
+# ===================================================================
+# CI Pipeline — MLOps House Price Prediction
+# ===================================================================
+name: MLOps Continuous Integration (CI) Pipeline
 
+# -------------------------------------------------------------------
+# Triggers
+# -------------------------------------------------------------------
 on:
   push:
     branches: ["**"]
   pull_request:
     branches: ["**"]
 
+# -------------------------------------------------------------------
+# Jobs
+# -------------------------------------------------------------------
 jobs:
+  # ================================================================
+  # tests — run unit tests with pytest using uv-managed venv
+  # ================================================================
   tests:
+    name: Unit tests (pytest)
     runs-on: ubuntu-latest
+
     strategy:
       matrix:
         python-version: ["3.13"]
 
     steps:
-      - uses: actions/checkout@v4
+      # ------------------------------
+      # Checkout
+      # ------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
+      # ------------------------------
+      # Python & dependency setup
+      # ------------------------------
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
@@ -32,25 +53,43 @@ jobs:
           restore-keys: |
             uv-${{ runner.os }}-${{ matrix.python-version }}-
 
-      - name: Install deps
+      - name: Install dependencies
         run: |
+          # Create virtual environment pinned to the job's Python version
           uv venv --python python${{ matrix.python-version }}
+
+          # Install project requirements if present
           if [ -f requirements.txt ]; then
             uv pip install -r requirements.txt
           fi
+
+          # Ensure pytest is available for the test run
           uv pip install pytest
 
+      # ------------------------------
+      # Test execution
+      # ------------------------------
       - name: Run tests
         run: uv run pytest -q
 
+  # ================================================================
+  # data-processing — preprocess data & engineer features
+  # ================================================================
   data-processing:
     name: Data processing & features
     needs: tests
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      # ------------------------------
+      # Checkout
+      # ------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
+      # ------------------------------
+      # Python & dependency setup
+      # ------------------------------
       - name: Set up Python 3.13
         uses: actions/setup-python@v5
         with:
@@ -67,14 +106,19 @@ jobs:
           restore-keys: |
             uv-${{ runner.os }}-3.13-
 
-      - name: Install deps (incl. invoke)
+      - name: Install dependencies (incl. invoke)
         run: |
+          # Create venv and install project deps
           uv venv --python python3.13
           if [ -f requirements.txt ]; then
             uv pip install -r requirements.txt
           fi
+          # CLI task runner for pipeline steps
           uv pip install invoke
 
+      # ------------------------------
+      # Quick repository inspection (debug)
+      # ------------------------------
       - name: Show repo tree (debug)
         run: |
           pwd
@@ -82,6 +126,9 @@ jobs:
           echo "--- src candidates ---"
           find src -maxdepth 3 -type f -name "*.py" -print || true
 
+      # ------------------------------
+      # Input validation
+      # ------------------------------
       - name: Check raw data presence
         run: |
           set -e
@@ -93,6 +140,9 @@ jobs:
             exit 1
           fi
 
+      # ------------------------------
+      # Pipeline execution — preprocess & feature engineering
+      # ------------------------------
       - name: Ensure directories
         run: uv run -m invoke ensure-dirs
 
@@ -112,6 +162,9 @@ jobs:
             --output data/processed/engineered_features.csv \
             --preprocessor models/trained/preprocessor.pkl
 
+      # ------------------------------
+      # Artifacts
+      # ------------------------------
       - name: Upload engineered data
         if: always()
         uses: actions/upload-artifact@v4
@@ -126,19 +179,30 @@ jobs:
           name: preprocessor
           path: models/trained/preprocessor.pkl
 
+  # ================================================================
+  # model-training — train model & log to MLflow
+  # ================================================================
   model-training:
+    name: Model training & MLflow logging
     needs: data-processing
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      # ------------------------------
+      # Checkout
+      # ------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
+      # ------------------------------
+      # Python & dependency setup
+      # ------------------------------
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.13'
+          python-version: "3.13"
 
-      - name: Install uv and deps (incl. invoke)
+      - name: Install uv and dependencies (incl. invoke)
         run: |
           python -m pip install --upgrade uv
           uv venv --python python3.13
@@ -147,6 +211,9 @@ jobs:
           fi
           uv pip install invoke
 
+      # ------------------------------
+      # Retrieve artifacts
+      # ------------------------------
       - name: Download engineered features
         uses: actions/download-artifact@v4
         with:
@@ -159,6 +226,9 @@ jobs:
           name: preprocessor
           path: models/trained/
 
+      # ------------------------------
+      # Ephemeral MLflow server (Docker)
+      # ------------------------------
       - name: Set up MLflow
         run: |
           docker pull ghcr.io/mlflow/mlflow:latest
@@ -182,6 +252,9 @@ jobs:
           echo "MLflow did not become healthy in time"
           exit 1
 
+      # ------------------------------
+      # Training
+      # ------------------------------
       - name: Train model (invoke)
         env:
           MLFLOW_TRACKING_URI: http://localhost:5000
@@ -193,23 +266,40 @@ jobs:
             --models-dir models \
             --mlflow-tracking-uri "${MLFLOW_TRACKING_URI}"
 
+      # ------------------------------
+      # Artifacts
+      # ------------------------------
       - name: Upload trained model
         uses: actions/upload-artifact@v4
         with:
           name: trained-model
           path: models/
 
+      # ------------------------------
+      # Cleanup
+      # ------------------------------
       - name: Clean up MLflow
         if: always()
         run: docker stop mlflow-server || true
 
+  # ================================================================
+  # build-and-publish — build container & publish to Docker Hub
+  # ================================================================
   build-and-publish:
+    name: Build & publish Docker image
     needs: model-training
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      # ------------------------------
+      # Checkout
+      # ------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
+      # ------------------------------
+      # Retrieve model artifacts
+      # ------------------------------
       - name: Download trained model
         uses: actions/download-artifact@v4
         with:
@@ -222,9 +312,15 @@ jobs:
           name: preprocessor
           path: models/trained/
 
+      # ------------------------------
+      # Docker setup
+      # ------------------------------
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # ------------------------------
+      # Build (no push for PRs / non-main)
+      # ------------------------------
       - name: Build image (no push on PRs / non-main)
         if: github.event_name == 'pull_request' || github.ref != 'refs/heads/main'
         uses: docker/build-push-action@v5
@@ -233,6 +329,9 @@ jobs:
           file: ./Dockerfile
           push: false
 
+      # ------------------------------
+      # Auth for publish (main branch only)
+      # ------------------------------
       - name: Log in to DockerHub
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/login-action@v3
@@ -241,6 +340,9 @@ jobs:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # ------------------------------
+      # Build & push (main branch only)
+      # ------------------------------
       - name: Build and push Docker image
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/build-push-action@v5
@@ -249,3 +351,11 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: docker.io/${{ vars.DOCKERHUB_USERNAME }}/house-price-model:latest
+
+# -------------------------------------------------------------------
+# Footer
+# -------------------------------------------------------------------
+# Notes:
+# - This pipeline uses 'uv' for fast, reproducible Python envs.
+# - Artifacts from data-processing feed into model-training, then into the Docker build.
+# - Docker login uses repository Variables/Secrets: DOCKERHUB_USERNAME / DOCKERHUB_TOKEN.
