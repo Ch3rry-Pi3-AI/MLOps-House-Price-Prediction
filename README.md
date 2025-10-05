@@ -1,11 +1,3 @@
-Perfect — since this branch represents your **CI/CD automation stage**, we’ll make the new `README.md` reflect that progression in your project lifecycle.
-
-This version maintains the same visual and structural style as your earlier READMEs (e.g., Streamlit one), reuses your four `.png` files for illustration, but adapts the narrative for **Continuous Integration and DockerHub publishing**.
-
-Here’s the full, polished replacement:
-
----
-
 # **Continuous Integration (CI) — Automation Stage**
 
 This branch extends the **MLOps House Price Prediction** project by introducing a fully automated **Continuous Integration (CI)** pipeline using **GitHub Actions**.
@@ -37,7 +29,7 @@ mlops-house-price-prediction/
 The **CI workflow** (`ci.yml`) is triggered automatically on every **push** or **pull request**. It executes the following jobs in sequence:
 
 | Stage                             | Description                                                                                            |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------ |
+|  |  |
 | 🧪 **Tests**                      | Runs all unit tests using `pytest` inside a `uv` virtual environment.                                  |
 | 🧹 **Data Processing & Features** | Loads raw CSV data, cleans it, and engineers new features using `invoke`.                              |
 | 🧠 **Model Training**             | Trains the ML model and logs it to a temporary **MLflow server** running inside Docker.                |
@@ -45,7 +37,7 @@ The **CI workflow** (`ci.yml`) is triggered automatically on every **push** or *
 
 This ensures every branch is validated before merging, and the main branch always holds a **ready-to-deploy** model image.
 
----
+
 
 ## **1️⃣ Setting Up DockerHub Credentials**
 
@@ -63,7 +55,7 @@ To allow GitHub Actions to publish your Docker image, you’ll need your **Docke
 
 For example, here the username is **`ch3rrypi3`**.
 
----
+
 
 ### 🔐 Step 2 — Generate a Personal Access Token
 
@@ -78,7 +70,7 @@ For example, here the username is **`ch3rrypi3`**.
 > ⚠️ **Important:** Copy the token immediately — you will not be able to view it again later.
 > You’ll use this as the **Secret value** in GitHub in the next step.
 
----
+
 
 ## **2️⃣ Configuring GitHub Secrets and Variables**
 
@@ -93,7 +85,7 @@ Now we’ll connect DockerHub with GitHub Actions so the pipeline can push image
   <img src=".github/img/github_secrets.png" alt="GitHub Secrets overview" width="700"/>
 </p>
 
----
+
 
 ### 🔑 Step 2 — Add a Repository Secret
 
@@ -110,7 +102,7 @@ Now we’ll connect DockerHub with GitHub Actions so the pipeline can push image
   <img src=".github/img/github_new_secret.png" alt="New GitHub secret creation" width="700"/>
 </p>
 
----
+
 
 ### 🧩 Step 3 — Add a Repository Variable
 
@@ -126,7 +118,7 @@ Now we’ll connect DockerHub with GitHub Actions so the pipeline can push image
 
 > The pipeline will now use these to authenticate when publishing your model image.
 
----
+
 
 ## **3️⃣ Running the CI Workflow**
 
@@ -150,7 +142,7 @@ This will run:
 
 …but **skip** the Docker publish step.
 
----
+
 
 ### 🚀 Option B — Publish via the `main` branch
 
@@ -172,7 +164,7 @@ This will run **all** stages, including:
 
 You’ll then see it appear in your DockerHub repository.
 
----
+
 
 ## **4️⃣ Verifying Your Docker Image**
 
@@ -193,7 +185,7 @@ docker pull ch3rrypi3/house-price-model:latest
 docker images | grep house-price-model
 ```
 
----
+
 
 ## **✅ Summary**
 
@@ -208,7 +200,3 @@ This **CI Stage** introduces full automation for your **MLOps House Price Predic
 * Visual setup guide (DockerHub + GitHub Secrets)
 
 Once configured, every push or merge will trigger your workflow automatically — ensuring reproducible, **continuous integration** of your **House Price Prediction** model. 🚀
-
----
-
-Would you like me to include a small table summarising the four images at the top (like a visual reference index) — e.g., “Image | Description | Used In Section”? It can make the README even more polished.
