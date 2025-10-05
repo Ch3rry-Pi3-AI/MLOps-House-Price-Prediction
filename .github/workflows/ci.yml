@@ -42,7 +42,6 @@ jobs:
           if [ -f requirements.txt ]; then
             uv pip install -r requirements.txt
           fi
-          # Ensure pytest present even if not listed
           uv pip install pytest
 
       - name: Run tests
@@ -54,8 +53,6 @@ jobs:
     name: Data processing & features (invoke)
     needs: tests
     runs-on: ubuntu-latest
-    # Only run if the raw CSV exists in the repo (avoids failures on branches without data fixtures)
-    if: ${{ hashFiles('data/raw/house_data.csv') != '' }}
 
     steps:
       - name: Checkout
@@ -86,7 +83,6 @@ jobs:
           if [ -f requirements.txt ]; then
             uv pip install -r requirements.txt
           fi
-          # Ensure invoke is available even if not in requirements
           uv pip install invoke
 
       - name: Show repo tree (debug)
@@ -96,15 +92,26 @@ jobs:
           echo "--- src candidates ---"
           find src -maxdepth 3 -type f -name "*.py" -print || true
 
+      - name: Check raw data presence
+        run: |
+          set -e
+          if [ -f "data/raw/house_data.csv" ]; then
+            echo "✅ Found data/raw/house_data.csv"
+          else
+            echo "❌ Missing data/raw/house_data.csv"
+            echo "   Commit a small fixture or adjust the --input path passed to 'inv preprocess'."
+            exit 1
+          fi
+
       - name: Ensure directories
         run: |
           source .venv/bin/activate
-          inv ensure-dirs
+          python -m invoke ensure-dirs
 
       - name: Preprocess (invoke)
         run: |
           source .venv/bin/activate
-          inv preprocess \
+          python -m invoke preprocess \
             --input data/raw/house_data.csv \
             --output data/processed/cleaned_house_data.csv \
             --policy filter \
@@ -115,7 +122,7 @@ jobs:
       - name: Engineer features (invoke)
         run: |
           source .venv/bin/activate
-          inv engineer \
+          python -m invoke engineer \
             --input data/processed/cleaned_house_data.csv \
             --output data/processed/engineered_features.csv \
             --preprocessor models/trained/preprocessor.pkl
