@@ -265,4 +265,3 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/house-price-model:latest
-
