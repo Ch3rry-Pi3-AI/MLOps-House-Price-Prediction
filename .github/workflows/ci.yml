@@ -14,18 +14,15 @@ jobs:
         python-version: ["3.13"]
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Upgrade pip and install uv
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install --upgrade uv
+      - name: Install uv
+        run: python -m pip install --upgrade uv
 
       - name: Cache uv packages
         uses: actions/cache@v4
@@ -35,19 +32,16 @@ jobs:
           restore-keys: |
             uv-${{ runner.os }}-${{ matrix.python-version }}-
 
-      - name: Create venv with uv & install deps
+      - name: Install deps
         run: |
           uv venv --python python${{ matrix.python-version }}
-          source .venv/bin/activate
           if [ -f requirements.txt ]; then
             uv pip install -r requirements.txt
           fi
           uv pip install pytest
 
       - name: Run tests
-        run: |
-          source .venv/bin/activate
-          pytest -q
+        run: uv run pytest -q
 
   data-processing:
     name: Data processing & features (invoke)
@@ -55,18 +49,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set up Python 3.13
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
 
-      - name: Upgrade pip and install uv
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install --upgrade uv
+      - name: Install uv
+        run: python -m pip install --upgrade uv
 
       - name: Cache uv packages
         uses: actions/cache@v4
@@ -76,10 +67,9 @@ jobs:
           restore-keys: |
             uv-${{ runner.os }}-3.13-
 
-      - name: Create venv with uv & install deps (incl. invoke)
+      - name: Install deps (incl. invoke)
         run: |
           uv venv --python python3.13
-          source .venv/bin/activate
           if [ -f requirements.txt ]; then
             uv pip install -r requirements.txt
           fi
@@ -104,24 +94,20 @@ jobs:
           fi
 
       - name: Ensure directories
-        run: |
-          source .venv/bin/activate
-          python -m invoke ensure-dirs
+        run: uv run -m invoke ensure-dirs
 
       - name: Preprocess (invoke)
         run: |
-          source .venv/bin/activate
-          python -m invoke preprocess \
+          uv run -m invoke preprocess \
             --input data/raw/house_data.csv \
             --output data/processed/cleaned_house_data.csv \
             --policy filter \
             --target price \
-            --iqr 1.5 \
+            --iqr 1.5
 
       - name: Engineer features (invoke)
         run: |
-          source .venv/bin/activate
-          python -m invoke engineer \
+          uv run -m invoke engineer \
             --input data/processed/cleaned_house_data.csv \
             --output data/processed/engineered_features.csv \
             --preprocessor models/trained/preprocessor.pkl
@@ -145,19 +131,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.13'
 
-      - name: Install dependencies
+      - name: Install uv and deps (incl. invoke)
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install invoke
+          python -m pip install --upgrade uv
+          uv venv --python python3.13
+          if [ -f requirements.txt ]; then
+            uv pip install -r requirements.txt
+          fi
+          uv pip install invoke
 
       - name: Download engineered features
         uses: actions/download-artifact@v4
@@ -199,7 +187,7 @@ jobs:
           MLFLOW_TRACKING_URI: http://localhost:5000
         run: |
           mkdir -p models
-          python -m invoke train \
+          uv run -m invoke train \
             --config configs/model_config.yaml \
             --data data/processed/engineered_features.csv \
             --models-dir models \
@@ -213,16 +201,14 @@ jobs:
 
       - name: Clean up MLflow
         if: always()
-        run: |
-          docker stop mlflow-server || true
+        run: docker stop mlflow-server || true
 
   build-and-publish:
     needs: model-training
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Download trained model
         uses: actions/download-artifact@v4
@@ -239,7 +225,6 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Build only (no push on PRs / non-main)
       - name: Build image (no push on PRs / non-main)
         if: github.event_name == 'pull_request' || github.ref != 'refs/heads/main'
         uses: docker/build-push-action@v5
@@ -248,7 +233,6 @@ jobs:
           file: ./Dockerfile
           push: false
 
-      # Only push on main branch
       - name: Log in to DockerHub
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/login-action@v3
