@@ -1,10 +1,7 @@
 # ===================================================================
 # CI Pipeline — MLOps House Price Prediction
 # ===================================================================
-name: MLOps Continuous Integration (CI) Pipeline
-=======
-name: CI
-
+name: MLOps Continuous Integration (CI) 
 
 # -------------------------------------------------------------------
 # Triggers
