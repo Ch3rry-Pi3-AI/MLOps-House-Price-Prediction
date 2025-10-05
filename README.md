@@ -17,7 +17,7 @@ mlops-house-price-prediction/
 │       ├── dockerhub_token.png
 │       ├── github_secrets.png
 │       └── github_new_secret.png
-├── src/                           # Source modules for data, features, and models
+├── src/                           # Source modules for data, features, and models 
 ├── streamlit_app/                 # Streamlit UI for user inference
 ├── Dockerfile                     # FastAPI inference container
 ├── docker-compose.yaml            # Combined inference orchestration
