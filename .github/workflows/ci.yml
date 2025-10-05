@@ -117,7 +117,6 @@ jobs:
             --policy filter \
             --target price \
             --iqr 1.5 \
-            --index false
 
       - name: Engineer features (invoke)
         run: |
