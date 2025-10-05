@@ -116,7 +116,7 @@ jobs:
             --output data/processed/cleaned_house_data.csv \
             --policy filter \
             --target price \
-            --iqr 1.5
+            --iqr 1.5 \
 
       - name: Engineer features (invoke)
         run: |
@@ -139,42 +139,23 @@ jobs:
         with:
           name: preprocessor
           path: models/trained/preprocessor.pkl
-
   model-training:
-    name: Model training (invoke)
     needs: data-processing
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.13
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: '3.13'
 
-      - name: Upgrade pip and install uv
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install --upgrade uv
-
-      - name: Cache uv packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/uv
-          key: uv-${{ runner.os }}-3.13-${{ hashFiles('uv.lock', 'requirements.txt') }}
-          restore-keys: |
-            uv-${{ runner.os }}-3.13-
-
-      - name: Create venv with uv & install deps (incl. invoke)
-        run: |
-          uv venv --python python3.13
-          source .venv/bin/activate
-          if [ -f requirements.txt ]; then
-            uv pip install -r requirements.txt
-          fi
-          uv pip install invoke
+          pip install -r requirements.txt
 
       - name: Download engineered features
         uses: actions/download-artifact@v4
@@ -188,38 +169,60 @@ jobs:
           name: preprocessor
           path: models/trained/
 
-      # Train with your invoke task; it will auto-use a local MLflow file store in ./mlruns
-      - name: Train model (invoke)
+      - name: Set up MLflow
         run: |
-          source .venv/bin/activate
-          python -m invoke train \
+          docker pull ghcr.io/mlflow/mlflow:latest
+          docker run -d --rm \
+            -p 5000:5000 \
+            --name mlflow-server \
+            ghcr.io/mlflow/mlflow:latest \
+            mlflow server \
+              --host 0.0.0.0 \
+              --backend-store-uri sqlite:///mlflow.db
+
+      - name: Wait for MLflow to start
+        run: |
+          for i in {1..30}; do
+            if curl -fsS http://localhost:5000/ > /dev/null; then
+              echo "MLflow is up"; break
+            fi
+            echo "Waiting for MLflow... ($i)"
+            sleep 2
+          done
+
+      - name: Train model
+        run: |
+          mkdir -p models
+          python src/models/train_model.py \
             --config configs/model_config.yaml \
             --data data/processed/engineered_features.csv \
-            --models-dir models
+            --models-dir models \
+            --mlflow-tracking-uri http://localhost:5000
 
-      - name: Upload trained model artifacts
-        if: always()
+      - name: Upload trained model
         uses: actions/upload-artifact@v4
         with:
           name: trained-model
-          path: |
-            models/
-            mlruns/
+          path: models/
+
+      - name: Clean up MLflow
+        if: always()
+        run: |
+          docker stop mlflow-server || true
 
   build-and-publish:
-    name: Build & publish Docker image
     needs: model-training
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Download trained model
         uses: actions/download-artifact@v4
         with:
           name: trained-model
-          path: .
+          path: models/
 
       - name: Download preprocessor
         uses: actions/download-artifact@v4
@@ -230,7 +233,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to Docker Hub
+      - name: Log in to DockerHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: docker.io
