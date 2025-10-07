@@ -33,7 +33,7 @@ st.set_page_config(
 # -------------------------------------------------------------------
 # Constants & Helpers
 # -------------------------------------------------------------------
-DEFAULT_API_URL = os.getenv("API_URL", "http://127.0.0.1:8000")
+DEFAULT_API_URL = os.getenv("API_URL", "http://model:8000")
 APP_VERSION = os.getenv("APP_VERSION", "1.0.0")
 APP_MODEL = os.getenv("APP_MODEL", "XGBoost")
 
