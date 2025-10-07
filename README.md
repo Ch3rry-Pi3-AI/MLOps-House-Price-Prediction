@@ -1,202 +1,129 @@
-# **Continuous Integration (CI) — Automation Stage**
+# **Kubernetes — Scalable Production Inference (Deployment Stage)**
 
-This branch extends the **MLOps House Price Prediction** project by introducing a fully automated **Continuous Integration (CI)** pipeline using **GitHub Actions**.
-The pipeline tests, processes, trains, and publishes your model as a **Docker image** directly to **DockerHub** — ensuring every change to your repository is automatically validated and built in a reproducible way.
+This branch adds a **scalable, production-style inference stack** using **Kubernetes**.
+You’ll spin up a **three-node KinD cluster**, deploy the **FastAPI model service** and **Streamlit UI** as Kubernetes **Deployments + Services**, and expose them via **NodePorts** for local access.
 
-This stage connects your entire project into a cohesive, version-controlled MLOps workflow that integrates **testing**, **model retraining**, and **container publishing**.
+* We install **KinD** and **kubectl** (see `deployment/kubernetes/installations/`).
+* We launch the cluster from the **KinD config** (three nodes).
+* We generate **manifests** declaratively from imperative commands.
+* We **apply** the manifests to create the in-cluster services.
+* We access the **Streamlit** and **FastAPI** endpoints locally.
 
-## **Module Structure**
+
+
+## **Project Structure**
 
 ```
 mlops-house-price-prediction/
-├── .github/
-│   ├── workflows/
-│   │   └── ci.yml                 # UPDATED! - CI pipeline definition (test → process → train → publish)
-│   └── img/                       # Supporting setup visuals
-│       ├── dockerhub_username.png
-│       ├── dockerhub_token.png
-│       ├── github_secrets.png
-│       └── github_new_secret.png
-├── src/                           # Source modules for data, features, and models 
-├── streamlit_app/                 # Streamlit UI for user inference
-├── Dockerfile                     # FastAPI inference container
-├── docker-compose.yaml            # Combined inference orchestration
+├── deployment/
+│   └── kubernetes/
+│       ├── kind/
+│       │   └── kind-three-node-cluster.yaml     # KinD 3-node cluster config (1 control-plane + 2 workers)
+│       ├── installations/                       # KinD & kubectl install guides (Windows)
+│       ├── kubectl/                             # kubectl cheat-sheet for this project
+│       ├── model-deploy.yaml                    # FastAPI model Deployment
+│       ├── model-svc.yaml                       # FastAPI Service (NodePort 30100)
+│       ├── streamlit-deploy.yaml                # Streamlit UI Deployment
+│       └── streamlit-svc.yaml                   # Streamlit Service (NodePort 30000)
+├── src/                                         
+├── streamlit_app/                               
+├── Dockerfile                                   
+├── docker-compose.yaml                          
 └── README.md
 ```
 
-## **Pipeline Overview**
-
-The **CI workflow** (`ci.yml`) is triggered automatically on every **push** or **pull request**. It executes the following jobs in sequence:
-
-| Stage                             | Description                                                                                            |
-|  |  |
-| 🧪 **Tests**                      | Runs all unit tests using `pytest` inside a `uv` virtual environment.                                  |
-| 🧹 **Data Processing & Features** | Loads raw CSV data, cleans it, and engineers new features using `invoke`.                              |
-| 🧠 **Model Training**             | Trains the ML model and logs it to a temporary **MLflow server** running inside Docker.                |
-| 🏗️ **Build & Publish**           | Builds the final **Docker image** and pushes it to your **DockerHub** repository on the `main` branch. |
-
-This ensures every branch is validated before merging, and the main branch always holds a **ready-to-deploy** model image.
 
 
+## **Overview & Commands**
 
-## **1️⃣ Setting Up DockerHub Credentials**
+### 1) Install tools (KinD & kubectl)
 
-To allow GitHub Actions to publish your Docker image, you’ll need your **DockerHub username** and a **personal access token**.
+See **installation steps** in:
 
-### 🪪 Step 1 — Get Your Username
+* `deployment/kubernetes/installations/`
 
-1. Log in to [DockerHub](https://hub.docker.com/).
-2. Click your **profile icon** (top right).
-3. Your username is displayed directly under your profile picture.
+  * **KinD** quick start
+  * **kubectl** on Windows (with official link)
 
-<p align="center">
-  <img src=".github/img/dockerhub_username.png" alt="DockerHub username example" width="600"/>
-</p>
+### 2) Launch the 3-node cluster (KinD)
 
-For example, here the username is **`ch3rrypi3`**.
+From the **repo root**:
 
-
-
-### 🔐 Step 2 — Generate a Personal Access Token
-
-1. Click your **profile icon** again.
-2. Go to **Account settings → Personal access tokens.**
-3. Click **Generate new token.**
-
-<p align="center">
-  <img src=".github/img/dockerhub_token.png" alt="DockerHub token generation screen" width="700"/>
-</p>
-
-> ⚠️ **Important:** Copy the token immediately — you will not be able to view it again later.
-> You’ll use this as the **Secret value** in GitHub in the next step.
-
-
-
-## **2️⃣ Configuring GitHub Secrets and Variables**
-
-Now we’ll connect DockerHub with GitHub Actions so the pipeline can push images automatically.
-
-### ⚙️ Step 1 — Open Your Repository Settings
-
-1. In your GitHub repository, click the **Settings** tab.
-2. Under **Security**, expand **Secrets and variables → Actions.**
-
-<p align="center">
-  <img src=".github/img/github_secrets.png" alt="GitHub Secrets overview" width="700"/>
-</p>
-
-
-
-### 🔑 Step 2 — Add a Repository Secret
-
-1. Under the **Secrets** tab, click **New repository secret.**
-2. For **Name**, enter:
-
-   ```
-   DOCKERHUB_TOKEN
-   ```
-3. In **Secret**, paste your DockerHub access token.
-4. Click **Add secret.**
-
-<p align="center">
-  <img src=".github/img/github_new_secret.png" alt="New GitHub secret creation" width="700"/>
-</p>
-
-
-
-### 🧩 Step 3 — Add a Repository Variable
-
-1. Switch to the **Variables** tab.
-2. Click **New repository variable.**
-3. For **Name**, enter:
-
-   ```
-   DOCKERHUB_USERNAME
-   ```
-4. For **Value**, enter your DockerHub username (e.g., `ch3rrypi3`).
-5. Click **Add variable.**
-
-> The pipeline will now use these to authenticate when publishing your model image.
-
-
-
-## **3️⃣ Running the CI Workflow**
-
-Once your credentials are configured, you can trigger the pipeline automatically.
-
-### 🧪 Option A — Test on a feature branch (no Docker push)
-
-Push to a non-main branch to test your workflow up to model training:
-
-```bash
-git add .
-git commit -m "Run CI pipeline test"
-git push origin feature/ci-update
+```powershell
+kind create cluster --config deployment/kubernetes/kind/kind-three-node-cluster.yaml
+kubectl get nodes
 ```
 
-This will run:
+You should see `kind-control-plane`, `kind-worker`, and `kind-worker2` in **Ready** state.
 
-* ✅ `tests`
-* 🧹 `data-processing`
-* 🧠 `model-training`
+### 3) Build manifests (declarative from imperative)
 
-…but **skip** the Docker publish step.
+From `deployment/kubernetes/` (adjust image tags as needed):
 
+```powershell
+# FastAPI Model
+kubectl create deployment model `
+  --image=ch3rrypi3/house-price-model:latest `
+  --port=8000 --replicas=2 `
+  --dry-run=client -o yaml > model-deploy.yaml
 
+kubectl create service nodeport model `
+  --tcp=8000 --node-port=30100 `
+  --dry-run=client -o yaml > model-svc.yaml
 
-### 🚀 Option B — Publish via the `main` branch
+# Streamlit UI (ensure app points to http://model:8000 inside cluster)
+kubectl create deployment streamlit `
+  --image=ch3rrypi3/streamlit:v1 `
+  --port=8501 --replicas=2 `
+  --dry-run=client -o yaml > streamlit-deploy.yaml
 
-When you **merge** into `main`, or push directly to it from VS Code:
-
-```bash
-git push origin main
+kubectl create service nodeport streamlit `
+  --tcp=8501 --node-port=30000 `
+  --dry-run=client -o yaml > streamlit-svc.yaml
 ```
 
-This will run **all** stages, including:
+> Tip: Inside the Streamlit app, set
+> `DEFAULT_API_URL = os.getenv("API_URL", "http://model:8000")`
+> so it talks to the in-cluster **model** service.
 
-* Building the final Docker image
-* Logging in to DockerHub
-* Pushing the image:
+### 4) Apply the manifests
 
-  ```
-  docker.io/<your_username>/house-price-model:latest
-  ```
+From the **repo root** (or from `deployment/kubernetes/` with relative paths):
 
-You’ll then see it appear in your DockerHub repository.
+```powershell
+kubectl apply -f deployment/kubernetes/model-deploy.yaml `
+              -f deployment/kubernetes/model-svc.yaml `
+              -f deployment/kubernetes/streamlit-deploy.yaml `
+              -f deployment/kubernetes/streamlit-svc.yaml
 
-
-
-## **4️⃣ Verifying Your Docker Image**
-
-After the pipeline completes successfully, go to:
-
-👉 [https://hub.docker.com/repositories/ch3rrypi3](https://hub.docker.com/repositories/ch3rrypi3)
-
-Your latest image should be visible under **Repositories** as:
-
-```
-house-price-model:latest
+kubectl get pods -w
+kubectl get svc
 ```
 
-You can also verify locally:
+### 5) Access the UIs (NodePort)
 
-```bash
-docker pull ch3rrypi3/house-price-model:latest
-docker images | grep house-price-model
+* **Streamlit UI:** [http://localhost:30000](http://localhost:30000)
+* **FastAPI model API:** [http://localhost:30100](http://localhost:30100)
+
+
+
+## **Delete the cluster (cleanup)**
+
+```powershell
+kind delete cluster --name kind
 ```
 
+This removes the control plane, workers, and related resources created by KinD.
 
 
-## **✅ Summary**
 
-This **CI Stage** introduces full automation for your **MLOps House Price Prediction** project.
+### **Summary**
 
-**Key outcomes:**
+* ✅ Installed **KinD** and **kubectl** (see `installations/`).
+* 🚀 Launched a **3-node** KinD cluster from `kind-three-node-cluster.yaml`.
+* 🧱 Generated Deployment/Service **manifests** (model + streamlit).
+* 📦 Applied manifests to create **scalable** deployments.
+* 🌐 Accessed services via **NodePorts** at **30000** (Streamlit) and **30100** (FastAPI).
+* 🧹 Cleaned up with `kind delete cluster --name kind`.
 
-* Seamless **Continuous Integration** workflow using **GitHub Actions**
-* End-to-end pipeline: **test → process → train → publish**
-* Secure **DockerHub authentication** via repository secrets and variables
-* Reproducible **Docker image publishing** with every merge to main
-* Visual setup guide (DockerHub + GitHub Secrets)
-
-Once configured, every push or merge will trigger your workflow automatically — ensuring reproducible, **continuous integration** of your **House Price Prediction** model. 🚀
+This stage delivers a **reproducible, scalable inference environment** ready for further automation and observability.
